@@ -46,17 +46,27 @@ export default function ProjectsPage() {
   const handleCreate = async () => {
     if (!form.name.trim()) return
     setSaving(true)
-    const { data: userData } = await supabase.auth.getUser()
-    await supabase.from('projects').insert({
+    const { data: userData, error: authError } = await supabase.auth.getUser()
+    if (authError || !userData.user) {
+      alert('Error de autenticación')
+      setSaving(false)
+      return
+    }
+    const { error } = await supabase.from('projects').insert({
       name: form.name.trim(), description: form.description.trim() || null, client_id: form.client_id || null,
       status: form.status, budget: form.budget ? parseFloat(form.budget) : null, currency: form.currency,
       start_date: form.start_date || null, due_date: form.due_date || null,
       drive_folder_url: form.drive_folder_url.trim() || null, github_repo_url: form.github_repo_url.trim() || null,
-      created_by: userData.user?.id,
+      created_by: userData.user.id,
     })
+    if (error) {
+      alert(`Error: ${error.message}`)
+      setSaving(false)
+      return
+    }
     setShowCreate(false)
     setForm({ name: '', description: '', client_id: '', status: 'active', budget: '', currency: 'USD', start_date: '', due_date: '', drive_folder_url: '', github_repo_url: '' })
-    fetchProjects()
+    await fetchProjects()
     setSaving(false)
   }
 
