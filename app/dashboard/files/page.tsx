@@ -121,7 +121,7 @@ export default function FilesPage() {
       .from('projects')
       .select('id, name, clients(name)')
       .order('name')
-    setProjects(data || [])
+   setProjects((data as Project[]) || [])
     if (data && data.length > 0 && !uploadProject) {
       setUploadProject(data[0].id)
     }
