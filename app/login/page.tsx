@@ -10,7 +10,7 @@ export default function LoginPage() {
     setLoading(true)
     const supabase = createClient()
     
- await supabase.auth.signInWithOAuth({
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
@@ -21,11 +21,11 @@ export default function LoginPage() {
         },
       },
     })
+  }
 
   return (
     <div className="min-h-screen bg-fp-bg-dark flex items-center justify-center">
       <div className="w-full max-w-sm mx-auto px-6">
-        {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-fp-punch-red to-fp-cerulean mb-4">
             <span className="text-white font-bold text-2xl">FP</span>
@@ -38,7 +38,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Login card */}
         <div className="bg-fp-card-dark border border-fp-border-dark rounded-2xl p-8">
           <h2 className="text-lg font-semibold text-fp-honeydew mb-2">
             Iniciar sesión
