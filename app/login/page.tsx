@@ -10,13 +10,17 @@ export default function LoginPage() {
     setLoading(true)
     const supabase = createClient()
     
-    await supabase.auth.signInWithOAuth({
+ await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: 'https://www.googleapis.com/auth/drive',
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     })
-  }
 
   return (
     <div className="min-h-screen bg-fp-bg-dark flex items-center justify-center">
