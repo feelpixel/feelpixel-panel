@@ -7,18 +7,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No hay token de Google. Cerrá sesión y volvé a entrar.' }, { status: 401 })
   }
 
-  const response = await fetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${providerToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentId],
-    }),
-  })
+  // supportsAllDrives=true es necesario para Unidades Compartidas
+  const response = await fetch(
+    'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+      }),
+    }
+  )
 
   const data = await response.json()
 

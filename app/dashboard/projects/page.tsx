@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Plus, Search, FolderOpen, ExternalLink, Calendar, DollarSign, Users, X, FolderSync } from 'lucide-react'
 
 // IDs de carpetas raíz en Google Drive
-const DRIVE_INTERNAL_FOLDER_ID = '1I4pQsedeCqQnM21Krtgh4WIlwTv36rGM'     // 04_AGENCIA_INTERNA > 04_Proyectos
+const DRIVE_INTERNAL_FOLDER_ID = '1h6CMaem7H6SyfksqM-r9ebYqqCEoCX-y'     // 04_AGENCIA_INTERNA > 04_Proyectos
 const DRIVE_PROYECTOS_TEMPLATE_ID = '1qADx0hzJe2aVr5SV043G-5GAMT2w9T6r'  // 03_Proyectos_Específicos (plantilla)
 
 type Project = {
