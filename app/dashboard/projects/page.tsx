@@ -131,12 +131,17 @@ export default function ProjectsPage() {
     }
 
     try {
+      // Obtener provider_token del lado del cliente (no disponible server-side en Supabase)
+      const { data: { session } } = await supabase.auth.getSession()
+      const providerToken = session?.provider_token
+
       const driveRes = await fetch('/api/drive/create-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           folderName: form.name.trim(),
           parentId: parentFolderId,
+          providerToken,
         }),
       })
 
