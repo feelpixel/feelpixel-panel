@@ -10,7 +10,7 @@ import {
   Film,
   FileText,
   Trash2,
-  ExternalLink,
+  Download,
   Eye,
   EyeOff,
   Search,
@@ -19,7 +19,6 @@ import {
   List,
   X,
   ChevronDown,
-  FolderSync,
 } from 'lucide-react'
 
 type FileRecord = {
@@ -27,7 +26,6 @@ type FileRecord = {
   name: string
   file_type: string
   storage_path: string | null
-  drive_file_id: string | null
   url: string | null
   size_bytes: number | null
   mime_type: string | null
@@ -42,7 +40,6 @@ type FileRecord = {
 type Project = {
   id: string
   name: string
-  drive_folder_id: string | null
   clients: { name: string } | null
 }
 
@@ -62,6 +59,14 @@ const fileTypeColors: Record<string, string> = {
   other: 'text-fp-text-secondary bg-fp-text-secondary/10',
 }
 
+const categoryLabels: Record<string, string> = {
+  photo: 'Foto',
+  document: 'Documento',
+  video: 'Video',
+  invoice: 'Factura',
+  special_request: 'Pedido especial',
+}
+
 function formatSize(bytes: number | null): string {
   if (!bytes) return '—'
   if (bytes < 1024) return `${bytes} B`
@@ -72,14 +77,7 @@ function formatSize(bytes: number | null): string {
 function detectFileType(mime: string): string {
   if (mime.startsWith('image/')) return 'image'
   if (mime.startsWith('video/')) return 'video'
-  if (
-    mime.includes('pdf') ||
-    mime.includes('document') ||
-    mime.includes('text') ||
-    mime.includes('sheet') ||
-    mime.includes('presentation')
-  )
-    return 'document'
+  if (mime.includes('pdf') || mime.includes('document') || mime.includes('text') || mime.includes('sheet') || mime.includes('presentation')) return 'document'
   return 'other'
 }
 
@@ -98,7 +96,6 @@ export default function FilesPage() {
   const [uploadProject, setUploadProject] = useState<string>('')
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)
   const [showFilterDropdown, setShowFilterDropdown] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const fetchFiles = useCallback(async () => {
     setLoading(true)
@@ -122,9 +119,9 @@ export default function FilesPage() {
   const fetchProjects = async () => {
     const { data } = await supabase
       .from('projects')
-      .select('id, name, drive_folder_id, clients(name)')
+      .select('id, name, clients(name)')
       .order('name')
-    setProjects((data as unknown as Project[]) || [])
+setProjects((data as unknown as Project[]) || [])
     if (data && data.length > 0 && !uploadProject) {
       setUploadProject(data[0].id)
     }
@@ -136,52 +133,30 @@ export default function FilesPage() {
   }, [fetchFiles])
 
   const handleUpload = async (fileList: FileList) => {
-    setUploadError(null)
-
     if (!uploadProject) {
-      setUploadError('Seleccioná un proyecto primero')
-      return
-    }
-
-    const selectedProject = projects.find((p) => p.id === uploadProject)
-    if (!selectedProject?.drive_folder_id) {
-      setUploadError(
-        'Este proyecto no tiene carpeta en Drive asignada. Abrí el proyecto y re-creá la carpeta desde el panel de proyectos.'
-      )
+      alert('Seleccioná un proyecto primero')
       return
     }
 
     setUploading(true)
 
-    // Obtener provider_token del lado del cliente
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    const providerToken = session?.provider_token
-
-    if (!providerToken) {
-      setUploadError('No hay token de Google. Cerrá sesión y volvé a entrar.')
-      setUploading(false)
-      return
-    }
-
     for (const file of Array.from(fileList)) {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('parentFolderId', selectedProject.drive_folder_id)
-      formData.append('providerToken', providerToken)
+      const timestamp = Date.now()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${uploadProject}/${timestamp}_${safeName}`
 
-      const res = await fetch('/api/drive/upload-file', {
-        method: 'POST',
-        body: formData,
-      })
+      const { error: uploadError } = await supabase.storage
+        .from('project-files')
+        .upload(path, file)
 
-      const driveData = await res.json()
-
-      if (!res.ok) {
-        setUploadError(`Error al subir "${file.name}": ${driveData.error}`)
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
         continue
       }
+
+      const { data: urlData } = supabase.storage
+        .from('project-files')
+        .getPublicUrl(path)
 
       const fileType = detectFileType(file.type)
 
@@ -189,13 +164,12 @@ export default function FilesPage() {
         project_id: uploadProject,
         name: file.name,
         file_type: fileType,
-        drive_file_id: driveData.fileId,
-        url: driveData.webViewLink,
-        size_bytes: driveData.size || file.size,
+        storage_path: path,
+        url: urlData.publicUrl,
+        size_bytes: file.size,
         mime_type: file.type,
         visible_to_client: false,
         version: 1,
-        storage_path: null,
       })
     }
 
@@ -224,37 +198,25 @@ export default function FilesPage() {
   const deleteFile = async (file: FileRecord) => {
     if (!confirm(`¿Eliminar "${file.name}"?`)) return
 
-    // Borrar en Drive si tiene drive_file_id
-    if (file.drive_file_id) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      const providerToken = session?.provider_token
-
-      if (providerToken) {
-        await fetch('/api/drive/delete-file', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId: file.drive_file_id, providerToken }),
-        })
-      }
-    }
-
-    // Borrar en Supabase Storage si tiene storage_path (archivos viejos)
     if (file.storage_path) {
       await supabase.storage.from('project-files').remove([file.storage_path])
     }
-
     await supabase.from('files').delete().eq('id', file.id)
     fetchFiles()
   }
 
-  const openFile = (file: FileRecord) => {
-    const url = file.url
-    if (url) window.open(url, '_blank')
+  const downloadFile = async (file: FileRecord) => {
+    if (file.storage_path) {
+      const { data } = await supabase.storage
+        .from('project-files')
+        .createSignedUrl(file.storage_path, 60)
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank')
+      }
+    }
   }
 
-  const filteredFiles = files.filter((f) =>
+  const filteredFiles = files.filter(f =>
     f.name.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -286,7 +248,7 @@ export default function FilesPage() {
               Archivos
             </h1>
             <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-0.5">
-              {files.length} archivos · {formatSize(totalSize)} total · almacenados en Drive
+              {files.length} archivos · {formatSize(totalSize)} total
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -309,7 +271,7 @@ export default function FilesPage() {
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-fp-border-dark text-sm text-gray-500 dark:text-fp-text-secondary bg-white dark:bg-fp-card-dark hover:bg-gray-50 dark:hover:bg-fp-hover-dark"
               >
                 <Filter size={14} />
-                {filterProject === 'all' ? 'Todos los proyectos' : projects.find((p) => p.id === filterProject)?.name || 'Proyecto'}
+                {filterProject === 'all' ? 'Todos los proyectos' : projects.find(p => p.id === filterProject)?.name || 'Proyecto'}
                 <ChevronDown size={12} />
               </button>
               {showFilterDropdown && (
@@ -320,7 +282,7 @@ export default function FilesPage() {
                   >
                     Todos los proyectos
                   </button>
-                  {projects.map((p) => (
+                  {projects.map(p => (
                     <button
                       key={p.id}
                       onClick={() => { setFilterProject(p.id); setShowFilterDropdown(false) }}
@@ -383,58 +345,32 @@ export default function FilesPage() {
       {showUpload && (
         <div className="mx-8 mt-4 bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-6">
           <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">
-                Subir archivos a Drive
-              </h3>
-              <span className="flex items-center gap-1 text-xs text-fp-cerulean bg-fp-cerulean/10 px-2 py-0.5 rounded-md">
-                <FolderSync size={11} />
-                Google Drive
-              </span>
-            </div>
-            <button
-              onClick={() => { setShowUpload(false); setUploadError(null) }}
-              className="text-gray-400 dark:text-fp-text-tertiary hover:text-fp-punch-red"
-            >
+            <h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">Subir archivos</h3>
+            <button onClick={() => setShowUpload(false)} className="text-gray-400 dark:text-fp-text-tertiary hover:text-fp-punch-red">
               <X size={16} />
             </button>
           </div>
 
           {/* Project selector */}
           <div className="mb-4">
-            <label className="text-xs text-gray-500 dark:text-fp-text-secondary mb-1 block">
-              Proyecto destino
-            </label>
+            <label className="text-xs text-gray-500 dark:text-fp-text-secondary mb-1 block">Proyecto destino</label>
             <div className="relative">
               <button
                 onClick={() => setShowProjectDropdown(!showProjectDropdown)}
                 className="w-full text-left px-4 py-2.5 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew flex justify-between items-center"
               >
-                <span>
-                  {projects.find((p) => p.id === uploadProject)?.name || 'Seleccionar proyecto...'}
-                </span>
-                <div className="flex items-center gap-2">
-                  {uploadProject && projects.find((p) => p.id === uploadProject)?.drive_folder_id ? (
-                    <span className="text-xs text-fp-cerulean">Drive ✓</span>
-                  ) : uploadProject ? (
-                    <span className="text-xs text-amber-400">Sin carpeta Drive</span>
-                  ) : null}
-                  <ChevronDown size={14} className="text-gray-400" />
-                </div>
+                {projects.find(p => p.id === uploadProject)?.name || 'Seleccionar proyecto...'}
+                <ChevronDown size={14} className="text-gray-400" />
               </button>
               {showProjectDropdown && (
                 <div className="absolute left-0 top-12 w-full bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl shadow-lg z-20 py-1 max-h-48 overflow-y-auto">
-                  {projects.map((p) => (
+                  {projects.map(p => (
                     <button
                       key={p.id}
-                      onClick={() => { setUploadProject(p.id); setShowProjectDropdown(false); setUploadError(null) }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-fp-hover-dark flex justify-between items-center ${uploadProject === p.id ? 'text-fp-cerulean font-semibold' : 'text-fp-navy dark:text-fp-honeydew'}`}
+                      onClick={() => { setUploadProject(p.id); setShowProjectDropdown(false) }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-fp-hover-dark ${uploadProject === p.id ? 'text-fp-cerulean font-semibold' : 'text-fp-navy dark:text-fp-honeydew'}`}
                     >
-                      <span>{p.name}</span>
-                      {p.drive_folder_id
-                        ? <span className="text-xs text-fp-cerulean">Drive ✓</span>
-                        : <span className="text-xs text-amber-400">Sin carpeta</span>
-                      }
+                      {p.name}
                     </button>
                   ))}
                   {projects.length === 0 && (
@@ -447,21 +383,14 @@ export default function FilesPage() {
             </div>
           </div>
 
-          {/* Error */}
-          {uploadError && (
-            <div className="mb-4 px-3 py-2 rounded-lg bg-fp-punch-red/10 border border-fp-punch-red/20 text-xs text-fp-punch-red">
-              {uploadError}
-            </div>
-          )}
-
           {/* Drop zone */}
           <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-8 cursor-pointer hover:border-fp-cerulean transition-colors">
             <Upload size={32} className="text-gray-400 dark:text-fp-text-tertiary mb-3" />
             <p className="text-sm text-fp-navy dark:text-fp-honeydew font-medium">
-              {uploading ? 'Subiendo a Drive...' : 'Hacé click o arrastrá archivos acá'}
+              {uploading ? 'Subiendo...' : 'Hacé click o arrastrá archivos acá'}
             </p>
             <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-1">
-              Cualquier tipo de archivo · Se guardan en la carpeta del proyecto en Drive
+              Cualquier tipo de archivo · Máximo 50MB
             </p>
             <input
               type="file"
@@ -487,9 +416,7 @@ export default function FilesPage() {
               {search ? 'Sin resultados' : 'No hay archivos todavía'}
             </h3>
             <p className="text-xs text-gray-400 dark:text-fp-text-tertiary">
-              {search
-                ? `No se encontraron archivos para "${search}"`
-                : 'Subí tu primer archivo con el botón de arriba'}
+              {search ? `No se encontraron archivos para "${search}"` : 'Subí tu primer archivo con el botón de arriba'}
             </p>
           </div>
         ) : viewMode === 'list' ? (
@@ -504,6 +431,7 @@ export default function FilesPage() {
               <span>Cliente</span>
               <span className="text-right">Acciones</span>
             </div>
+            {/* Rows */}
             {filteredFiles.map((file) => {
               const IconComp = fileTypeIcons[file.file_type] || File
               const colorClass = fileTypeColors[file.file_type] || fileTypeColors.other
@@ -522,9 +450,6 @@ export default function FilesPage() {
                       </div>
                       <div className="text-[10px] text-gray-400 dark:text-fp-text-tertiary">
                         v{file.version} · {new Date(file.created_at).toLocaleDateString('es-AR')}
-                        {file.drive_file_id && (
-                          <span className="ml-1 text-fp-cerulean">· Drive</span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -551,15 +476,13 @@ export default function FilesPage() {
                     </button>
                   </div>
                   <div className="flex items-center gap-1 justify-end">
-                    {file.url && (
-                      <button
-                        onClick={() => openFile(file)}
-                        className="p-1.5 rounded-md text-gray-400 dark:text-fp-text-tertiary hover:text-fp-cerulean hover:bg-fp-cerulean/10 transition-colors"
-                        title="Abrir en Drive"
-                      >
-                        <ExternalLink size={14} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => downloadFile(file)}
+                      className="p-1.5 rounded-md text-gray-400 dark:text-fp-text-tertiary hover:text-fp-cerulean hover:bg-fp-cerulean/10 transition-colors"
+                      title="Descargar"
+                    >
+                      <Download size={14} />
+                    </button>
                     <button
                       onClick={() => deleteFile(file)}
                       className="p-1.5 rounded-md text-gray-400 dark:text-fp-text-tertiary hover:text-fp-punch-red hover:bg-fp-punch-red/10 transition-colors"
@@ -595,15 +518,12 @@ export default function FilesPage() {
                     )}
                     {/* Actions overlay */}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      {file.url && (
-                        <button
-                          onClick={() => openFile(file)}
-                          className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"
-                          title="Abrir en Drive"
-                        >
-                          <ExternalLink size={16} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => downloadFile(file)}
+                        className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"
+                      >
+                        <Download size={16} />
+                      </button>
                       <button
                         onClick={() => toggleVisibility(file)}
                         className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20"

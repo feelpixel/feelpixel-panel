@@ -19,6 +19,7 @@ type Project = {
   start_date: string | null
   due_date: string | null
   drive_folder_url: string | null
+  drive_folder_id: string | null
   github_repo_url: string | null
   created_at: string
   client_id: string | null
@@ -154,9 +155,12 @@ export default function ProjectsPage() {
       } else {
         // 4 — Actualizar proyecto con la URL de Drive generada
         await supabase
-          .from('projects')
-          .update({ drive_folder_url: driveData.folderUrl })
-          .eq('id', newProject.id)
+        .from('projects')
+        .update({
+          drive_folder_url: driveData.folderUrl,
+          drive_folder_id: driveData.folderId,
+        })
+        .eq('id', newProject.id)
 
         setDriveStatus('done')
       }
