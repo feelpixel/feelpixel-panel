@@ -18,9 +18,10 @@ import {
   Building2,
   StickyNote,
   FolderSync,
+  Loader2,
 } from 'lucide-react'
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Tipos ──────────────────────────────────────────────────────────────
 
 type Client = {
   id: string
@@ -33,6 +34,7 @@ type Client = {
   instagram_url: string | null
   linkedin_url: string | null
   drive_folder_id: string | null
+  drive_fee_folder_id: string | null
   created_at: string
   // virtual — lo calculamos aparte
   project_count?: number
@@ -62,7 +64,7 @@ const emptyForm: FormState = {
   drive_folder_id: '',
 }
 
-// ─── Componente ───────────────────────────────────────────────────────────────
+// ─── Componente ─────────────────────────────────────────────────────────
 
 export default function ClientsPage() {
   const supabase = createClient()
@@ -74,9 +76,10 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [driveStatus, setDriveStatus] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
@@ -105,27 +108,29 @@ export default function ClientsPage() {
 
   useEffect(() => { fetchClients() }, [fetchClients])
 
-  // ── Modal ──────────────────────────────────────────────────────────────────
+  // ── Modal ──────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setEditingClient(null)
     setForm(emptyForm)
+    setDriveStatus(null)
     setShowModal(true)
   }
 
   const openEdit = (client: Client) => {
     setEditingClient(client)
     setForm({
-      name:           client.name,
-      company:        client.company || '',
-      email:          client.email || '',
-      phone:          client.phone || '',
-      website:        client.website || '',
-      notes:          client.notes || '',
-      instagram_url:  client.instagram_url || '',
-      linkedin_url:   client.linkedin_url || '',
+      name:            client.name,
+      company:         client.company || '',
+      email:           client.email || '',
+      phone:           client.phone || '',
+      website:         client.website || '',
+      notes:           client.notes || '',
+      instagram_url:   client.instagram_url || '',
+      linkedin_url:    client.linkedin_url || '',
       drive_folder_id: client.drive_folder_id || '',
     })
+    setDriveStatus(null)
     setShowModal(true)
   }
 
@@ -133,33 +138,78 @@ export default function ClientsPage() {
     setShowModal(false)
     setEditingClient(null)
     setForm(emptyForm)
+    setDriveStatus(null)
   }
 
   const handleSave = async () => {
     if (!form.name.trim()) return
     setSaving(true)
+    setDriveStatus(null)
 
     const payload = {
-      name:           form.name.trim(),
-      company:        form.company.trim() || null,
-      email:          form.email.trim() || null,
-      phone:          form.phone.trim() || null,
-      website:        form.website.trim() || null,
-      notes:          form.notes.trim() || null,
-      instagram_url:  form.instagram_url.trim() || null,
-      linkedin_url:   form.linkedin_url.trim() || null,
+      name:            form.name.trim(),
+      company:         form.company.trim() || null,
+      email:           form.email.trim() || null,
+      phone:           form.phone.trim() || null,
+      website:         form.website.trim() || null,
+      notes:           form.notes.trim() || null,
+      instagram_url:   form.instagram_url.trim() || null,
+      linkedin_url:    form.linkedin_url.trim() || null,
       drive_folder_id: form.drive_folder_id.trim() || null,
     }
 
     if (editingClient) {
+      // ── Editar ──
       await supabase.from('clients').update(payload).eq('id', editingClient.id)
+      setSaving(false)
+      closeModal()
+      fetchClients()
     } else {
-      await supabase.from('clients').insert(payload)
-    }
+      // ── Crear ──
+      const { data: newClient, error: insertError } = await supabase
+        .from('clients')
+        .insert(payload)
+        .select('id, name')
+        .single()
 
-    setSaving(false)
-    closeModal()
-    fetchClients()
+      if (insertError || !newClient) {
+        console.error('Error creando cliente:', insertError)
+        setSaving(false)
+        return
+      }
+
+      // Crear estructura en Drive automáticamente
+      setDriveStatus('Creando carpetas en Drive...')
+
+      try {
+        const driveRes = await fetch('/api/drive/setup-client', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: newClient.id,
+            clientName: newClient.name,
+          }),
+        })
+
+        const driveData = await driveRes.json()
+
+        if (driveRes.ok && driveData.success) {
+          setDriveStatus(driveData.warning ? '⚠️ ' + driveData.warning : '✅ Carpetas creadas en Drive')
+        } else {
+          setDriveStatus('⚠️ Cliente creado, pero hubo un error con Drive: ' + (driveData.error || 'Error desconocido'))
+        }
+      } catch {
+        setDriveStatus('⚠️ Cliente creado, pero no se pudo conectar con Drive')
+      }
+
+      setSaving(false)
+      fetchClients()
+
+      // Cerrar modal después de un momento para que se vea el estado
+      setTimeout(() => {
+        closeModal()
+      }, 2000)
+    }
   }
 
   const handleDelete = async (client: Client) => {
@@ -168,7 +218,7 @@ export default function ClientsPage() {
     fetchClients()
   }
 
-  // ── Filtrado ───────────────────────────────────────────────────────────────
+  // ── Filtrado ──────────────────────────────────────────────────────────
 
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -176,7 +226,7 @@ export default function ClientsPage() {
     c.email?.toLowerCase().includes(search.toLowerCase())
   )
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div>
@@ -236,6 +286,7 @@ export default function ClientsPage() {
           <div className="grid gap-3">
             {filtered.map(client => {
               const isExpanded = expandedId === client.id
+              const hasDrive = !!client.drive_folder_id
               return (
                 <div
                   key={client.id}
@@ -257,6 +308,11 @@ export default function ClientsPage() {
                         {client.company && (
                           <span className="text-xs text-gray-400 dark:text-fp-text-tertiary flex items-center gap-1">
                             <Building2 size={11} /> {client.company}
+                          </span>
+                        )}
+                        {hasDrive && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-500 font-medium">
+                            Drive ✓
                           </span>
                         )}
                       </div>
@@ -340,7 +396,7 @@ export default function ClientsPage() {
                         {client.drive_folder_id && (
                           <div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-fp-text-tertiary mb-1">
-                              <FolderSync size={11} /> Carpeta Drive
+                              <FolderSync size={11} /> Carpeta Drive (Proyectos)
                             </div>
                             <a
                               href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
@@ -349,6 +405,21 @@ export default function ClientsPage() {
                               className="text-xs text-fp-cerulean hover:underline font-mono truncate block"
                             >
                               {client.drive_folder_id}
+                            </a>
+                          </div>
+                        )}
+                        {client.drive_fee_folder_id && (
+                          <div>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-fp-text-tertiary mb-1">
+                              <FolderSync size={11} /> Carpeta Drive (Fee Mensual)
+                            </div>
+                            <a
+                              href={`https://drive.google.com/drive/folders/${client.drive_fee_folder_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-fp-cerulean hover:underline font-mono truncate block"
+                            >
+                              {client.drive_fee_folder_id}
                             </a>
                           </div>
                         )}
@@ -477,22 +548,34 @@ export default function ClientsPage() {
                 </div>
               </div>
 
-              {/* Drive folder ID */}
-              <div>
-                <label className="text-xs text-gray-500 dark:text-fp-text-secondary block mb-1">
-                  ID carpeta Drive <span className="text-fp-text-tertiary">(03_Proyectos_Específicos del cliente)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.drive_folder_id}
-                  onChange={e => setForm({ ...form, drive_folder_id: e.target.value })}
-                  placeholder="1qADx0hzJe2aVr5SV043G-5GAMT2w9T6r"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean font-mono"
-                />
-                <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-1">
-                  Encontralo en Drive → URL de la carpeta → el ID es la parte después de /folders/
-                </p>
-              </div>
+              {/* Drive folder ID — solo en edición */}
+              {editingClient && (
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-fp-text-secondary block mb-1">
+                    ID carpeta Drive <span className="text-fp-text-tertiary">(03_Proyectos_Específicos del cliente)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.drive_folder_id}
+                    onChange={e => setForm({ ...form, drive_folder_id: e.target.value })}
+                    placeholder="1qADx0hzJe2aVr5SV043G-5GAMT2w9T6r"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean font-mono"
+                  />
+                  <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-1">
+                    Encontralo en Drive → URL de la carpeta → el ID es la parte después de /folders/
+                  </p>
+                </div>
+              )}
+
+              {/* Info de auto-creación en modo crear */}
+              {!editingClient && (
+                <div className="bg-fp-cerulean/5 border border-fp-cerulean/20 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-fp-cerulean font-medium">
+                    <FolderSync size={13} />
+                    Al crear el cliente, se genera automáticamente su carpeta en Drive con toda la estructura.
+                  </div>
+                </div>
+              )}
 
               {/* Notas */}
               <div>
@@ -505,6 +588,16 @@ export default function ClientsPage() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean resize-none"
                 />
               </div>
+
+              {/* Estado de Drive */}
+              {driveStatus && (
+                <div className="bg-fp-navy/5 dark:bg-fp-navy/20 border border-fp-border-dark rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-fp-honeydew dark:text-fp-honeydew">
+                    {saving && <Loader2 size={13} className="animate-spin text-fp-cerulean" />}
+                    <span className="text-fp-navy dark:text-fp-honeydew">{driveStatus}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -518,9 +611,13 @@ export default function ClientsPage() {
               <button
                 onClick={handleSave}
                 disabled={!form.name.trim() || saving}
-                className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50 transition-colors flex items-center gap-2"
               >
-                {saving ? 'Guardando...' : editingClient ? 'Guardar cambios' : 'Crear cliente'}
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                {saving
+                  ? (editingClient ? 'Guardando...' : 'Creando...')
+                  : editingClient ? 'Guardar cambios' : 'Crear cliente'
+                }
               </button>
             </div>
           </div>
