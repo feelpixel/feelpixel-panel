@@ -273,7 +273,7 @@ export default function FilesPage() {
   }
 
   const bulkToggleVisibility = async (visible: boolean) => {
-    for (const id of selectedIds) {
+    for (const id of Array.from(selectedIds)) {
       await supabase.from('files').update({ visible_to_client: visible }).eq('id', id)
     }
     setSelectedIds(new Set()); fetchFiles()
@@ -283,7 +283,7 @@ export default function FilesPage() {
     if (!confirm(`¿Eliminar ${selectedIds.size} archivos seleccionados?`)) return
     const { data: { session } } = await supabase.auth.getSession()
     const providerToken = session?.provider_token
-    for (const id of selectedIds) {
+    for (const id of Array.from(selectedIds)) {
       const file = files.find(f => f.id === id)
       if (!file) continue
       if (file.drive_file_id && providerToken) {
