@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
   ArrowLeft, ExternalLink, Calendar, Users, FolderOpen, File, Image, Film,
-  FileText, Eye, EyeOff, Trash2, CheckCircle2, Circle, Clock, AlertCircle,
+  FileText, Eye, EyeOff, Trash2, CheckCircle2, Clock, AlertCircle,
   Github, Upload, X, FolderSync, Tag, Loader2, Plus, Pencil, List, LayoutGrid,
-  GripVertical, ChevronRight, Link2, Hash, Type, Palette, Layers,
+  ChevronRight, Type, Palette, Layers,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -27,7 +27,6 @@ type Task = {
   title: string; description: string | null; status: string; priority: string
   assignees: string[] | null; due_date: string | null; tags: string[] | null
   links: { url: string; label: string }[] | null; order: number; created_at: string
-  subtask_count?: number
 }
 type FileRecord = {
   id: string; name: string; file_type: string; storage_path: string | null
@@ -82,15 +81,31 @@ function getInitials(name: string | null | undefined) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
+// ── COLUMNAS DEFAULT — Feel Pixel workflow ────────────────────────────────────
 const DEFAULT_COLUMNS = [
-  { name: 'Pendiente',    color: '#8a9bb5', order: 0 },
-  { name: 'En progreso',  color: '#457B9D', order: 1 },
-  { name: 'En revisión',  color: '#F59E0B', order: 2 },
-  { name: 'Listo',        color: '#10B981', order: 3 },
+  { name: 'Presupuesto',      color: '#8a9bb5', order: 0 },
+  { name: 'Pre-producción',   color: '#A8DADC', order: 1 },
+  { name: 'Producción',       color: '#457B9D', order: 2 },
+  { name: 'Post-Producción',  color: '#F59E0B', order: 3 },
+  { name: 'Revisión',         color: '#E63946', order: 4 },
+  { name: 'Finalizado',       color: '#10B981', order: 5 },
 ]
 
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean"
 const labelCls = "text-xs text-gray-500 dark:text-fp-text-secondary block mb-1"
+
+// ── Toggle switch reutilizable ─────────────────────────────────────────────
+// FIX: usa left-[2px]/left-[22px] en vez de translate para evitar overflow
+function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-fp-cerulean' : 'bg-gray-300 dark:bg-fp-border-dark'}`}
+    >
+      <span className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${on ? 'left-[22px]' : 'left-[2px]'}`} />
+    </button>
+  )
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -139,11 +154,10 @@ export default function ProjectDetailPage() {
   const [showFontForm, setShowFontForm] = useState(false)
   const [colorForm, setColorForm] = useState({ name: '', hex: '#457B9D' })
   const [fontForm, setFontForm] = useState({ name: '', type: 'sans' })
-  // BUG #3 FIX: estado para carpetas Drive del branding (cargadas dinámicamente)
   const [brandingDriveFolders, setBrandingDriveFolders] = useState<{label: string; url: string | null; id: string | null}[]>([
-    { label: 'Gráfica oficial',    url: null, id: null },
-    { label: 'Fuentes cliente',    url: null, id: null },
-    { label: 'Manual de Marca',    url: null, id: null },
+    { label: 'Gráfica oficial',      url: null, id: null },
+    { label: 'Fuentes cliente',      url: null, id: null },
+    { label: 'Manual de Marca',      url: null, id: null },
     { label: 'Material del cliente', url: null, id: null },
   ])
   const [loadingBrandFolders, setLoadingBrandFolders] = useState(false)
@@ -155,22 +169,39 @@ export default function ProjectDetailPage() {
     setProject(data)
     return data
   }
+
   const fetchColumns = async () => {
-    const { data } = await supabase.from('kanban_columns').select('*').eq('project_id', projectId).order('order')
+    const { data, error } = await supabase.from('kanban_columns').select('*').eq('project_id', projectId).order('order')
+    if (error) {
+      console.error('kanban_columns error:', error.message)
+      return []
+    }
     return data || []
   }
+
   const fetchTasks = async () => {
-    const { data } = await supabase.from('tasks').select('*').eq('project_id', projectId).is('parent_task_id', null).order('order')
-    setTasks(data || [])
+    // Intenta query completa; si falla (columnas nuevas no existen), hace fallback
+    const { data, error } = await supabase
+      .from('tasks').select('*').eq('project_id', projectId)
+      .is('parent_task_id', null).order('order')
+    if (error) {
+      const { data: basic } = await supabase.from('tasks').select('*').eq('project_id', projectId).order('created_at')
+      setTasks(basic || [])
+    } else {
+      setTasks(data || [])
+    }
   }
+
   const fetchFiles = async () => {
     const { data } = await supabase.from('files').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
     setFiles(data || [])
   }
+
   const fetchProfiles = async () => {
     const { data } = await supabase.from('profiles').select('id, full_name, email')
     setProfiles(data || [])
   }
+
   const fetchBranding = async (clientId: string) => {
     const [colors, fonts] = await Promise.all([
       supabase.from('brand_colors').select('*').eq('client_id', clientId),
@@ -180,7 +211,6 @@ export default function ProjectDetailPage() {
     setBrandFonts(fonts.data || [])
   }
 
-  // BUG #3 FIX: carga las subcarpetas reales de 00_Onboarding_Brand
   const fetchBrandingFolders = async (clientDriveFolderId: string) => {
     setLoadingBrandFolders(true)
     try {
@@ -188,13 +218,9 @@ export default function ProjectDetailPage() {
       const res = await fetch(`/api/drive/get-onboarding-folders?folderId=${encodeURIComponent(clientDriveFolderId)}&providerToken=${encodeURIComponent(session?.provider_token || '')}`)
       if (res.ok) {
         const data = await res.json()
-        if (data.folders && Array.isArray(data.folders)) {
-          setBrandingDriveFolders(data.folders)
-        }
+        if (data.folders) setBrandingDriveFolders(data.folders)
       }
-    } catch {
-      // silencioso — los links se quedan como null (sin clickear)
-    }
+    } catch { /* silencioso */ }
     setLoadingBrandFolders(false)
   }
 
@@ -205,8 +231,12 @@ export default function ProjectDetailPage() {
       let cols = await fetchColumns()
       if (cols.length === 0) {
         const toInsert = DEFAULT_COLUMNS.map(c => ({ ...c, project_id: projectId }))
-        const { data: newCols } = await supabase.from('kanban_columns').insert(toInsert).select()
-        cols = newCols || []
+        const { data: newCols, error } = await supabase.from('kanban_columns').insert(toInsert).select()
+        if (error) {
+          console.error('Error creando columnas default:', error.message)
+        } else {
+          cols = newCols || []
+        }
       }
       setColumns(cols)
       await Promise.all([fetchTasks(), fetchFiles(), fetchProfiles()])
@@ -216,7 +246,6 @@ export default function ProjectDetailPage() {
     init()
   }, [projectId])
 
-  // BUG #3 FIX: cuando el usuario abre el tab Branding, carga las carpetas Drive
   useEffect(() => {
     if (activeTab === 'branding' && project?.clients?.drive_folder_id) {
       fetchBrandingFolders(project.clients.drive_folder_id)
@@ -227,7 +256,7 @@ export default function ProjectDetailPage() {
 
   const doneTasks = tasks.filter(t => {
     const col = columns.find(c => c.id === t.column_id)
-    return col?.name === 'Listo' || t.status === 'done'
+    return col?.name === 'Finalizado' || col?.name === 'Listo' || t.status === 'done'
   }).length
   const progress = tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0
 
@@ -248,34 +277,48 @@ export default function ProjectDetailPage() {
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
 
-  const openCreateTask = () => {
+  const openCreateTask = (colId?: string) => {
     setEditingTask(null)
-    const firstCol = columns[0]
-    setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: firstCol?.id || '', tags: '', assignees: [] })
+    setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: colId || columns[0]?.id || '', tags: '', assignees: [] })
     setShowTaskModal(true)
   }
   const openEditTask = (t: Task) => {
     setEditingTask(t)
-    setTaskForm({ title: t.title, description: t.description || '', priority: t.priority, due_date: t.due_date || '', column_id: t.column_id || '', tags: (t.tags || []).join(', '), assignees: t.assignees || [] })
+    setTaskForm({ title: t.title, description: t.description || '', priority: t.priority || 'medium', due_date: t.due_date || '', column_id: t.column_id || '', tags: (t.tags || []).join(', '), assignees: t.assignees || [] })
     setShowTaskModal(true)
   }
   const saveTask = async () => {
     if (!taskForm.title.trim()) return
     setSavingTask(true)
     const { data: userData } = await supabase.auth.getUser()
-    const payload = {
-      project_id: projectId, title: taskForm.title.trim(), description: taskForm.description.trim() || null,
-      priority: taskForm.priority, due_date: taskForm.due_date || null,
-      column_id: taskForm.column_id || columns[0]?.id || null,
-      status: 'todo', tags: taskForm.tags ? taskForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      assignees: taskForm.assignees, created_by: userData.user?.id,
+    const payload: Record<string, unknown> = {
+      project_id: projectId,
+      title: taskForm.title.trim(),
+      status: 'pending',
     }
+    // Columnas nuevas — solo se incluyen si la tabla las tiene
+    try {
+      Object.assign(payload, {
+        description: taskForm.description.trim() || null,
+        priority: taskForm.priority,
+        due_date: taskForm.due_date || null,
+        column_id: taskForm.column_id || columns[0]?.id || null,
+        tags: taskForm.tags ? taskForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        assignees: taskForm.assignees,
+        created_by: userData.user?.id,
+      })
+    } catch {}
+
     if (editingTask) {
-      await supabase.from('tasks').update(payload).eq('id', editingTask.id)
-      if (project) await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_updated', description: `Tarea "${taskForm.title}" actualizada` })
+      const { error } = await supabase.from('tasks').update(payload).eq('id', editingTask.id)
+      if (!error && project) {
+        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_updated', description: `Tarea "${taskForm.title}" actualizada` }).then(() => {})
+      }
     } else {
-      await supabase.from('tasks').insert(payload)
-      if (project) await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_created', description: `Nueva tarea: "${taskForm.title}"` })
+      const { error } = await supabase.from('tasks').insert(payload)
+      if (!error && project) {
+        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_created', description: `Nueva tarea: "${taskForm.title}"` }).then(() => {})
+      }
     }
     setShowTaskModal(false); setSavingTask(false); await fetchTasks()
   }
@@ -297,8 +340,12 @@ export default function ProjectDetailPage() {
   const addColumn = async () => {
     const name = prompt('Nombre de la nueva columna:')
     if (!name?.trim()) return
-    const maxOrder = Math.max(...columns.map(c => c.order), -1)
-    const { data } = await supabase.from('kanban_columns').insert({ project_id: projectId, name: name.trim(), color: '#457B9D', order: maxOrder + 1 }).select().single()
+    const maxOrder = columns.length > 0 ? Math.max(...columns.map(c => c.order)) + 1 : 0
+    const { data, error } = await supabase.from('kanban_columns').insert({ project_id: projectId, name: name.trim(), color: '#457B9D', order: maxOrder }).select().single()
+    if (error) {
+      alert('Error al crear columna. Asegurate de haber ejecutado el SQL de migración en Supabase.')
+      return
+    }
     if (data) setColumns(prev => [...prev, data])
   }
 
@@ -353,7 +400,7 @@ export default function ProjectDetailPage() {
         visible_to_client: false, version: forceNaming ? ver : 1, storage_path: null,
       })
       const { data: userData } = await supabase.auth.getUser()
-      await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'file_uploaded', description: `Archivo subido: "${finalName}"` })
+      await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'file_uploaded', description: `Archivo subido: "${finalName}"` }).then(() => {})
       if (forceNaming) ver++
     }
     setUploading(false); setShowUpload(false); setForceNaming(false); setNamingDesc(''); setNamingVersion(1); fetchFiles()
@@ -442,12 +489,10 @@ export default function ProjectDetailPage() {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2 space-y-4">
-              {/* Description */}
               <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-fp-text-secondary uppercase tracking-wider mb-3">Descripción</h3>
                 {project.description ? <p className="text-sm text-fp-navy dark:text-fp-honeydew leading-relaxed">{project.description}</p> : <p className="text-sm text-gray-400 dark:text-fp-text-tertiary italic">Sin descripción</p>}
               </div>
-              {/* Progress */}
               {tasks.length > 0 && (
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5">
                   <div className="flex justify-between items-center mb-3">
@@ -458,7 +503,6 @@ export default function ProjectDetailPage() {
                   <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-2">{doneTasks} de {tasks.length} tareas completadas</p>
                 </div>
               )}
-              {/* Recent files */}
               {files.length > 0 && (
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
                   <div className="px-5 py-3 border-b border-gray-100 dark:border-fp-border-dark flex justify-between items-center">
@@ -468,14 +512,13 @@ export default function ProjectDetailPage() {
                   {files.slice(0, 4).map(f => { const IC = fileTypeIcons[f.file_type] || File; const cc = fileTypeColors[f.file_type] || fileTypeColors.other; return (
                     <div key={f.id} className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 dark:border-fp-border-dark last:border-0">
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cc}`}><IC size={13} /></div>
-                      <div className="flex-1 min-w-0"><div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{f.name}</div><div className="text-xs text-gray-400 dark:text-fp-text-tertiary">{formatSize(f.size_bytes)} · {new Date(f.created_at).toLocaleDateString('es-AR')}</div></div>
+                      <div className="flex-1 min-w-0"><div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{f.name}</div><div className="text-xs text-gray-400">{formatSize(f.size_bytes)} · {new Date(f.created_at).toLocaleDateString('es-AR')}</div></div>
                       {f.url && <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-fp-cerulean"><ExternalLink size={13} /></a>}
                     </div>
                   )})}
                 </div>
               )}
             </div>
-            {/* Sidebar */}
             <div className="space-y-4">
               <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5 space-y-3">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-fp-text-secondary uppercase tracking-wider">Detalles</h3>
@@ -484,7 +527,6 @@ export default function ProjectDetailPage() {
                 {project.clients && <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><Users size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Cliente</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{project.clients.name}</div></div></div>}
                 <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><FolderOpen size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Creado</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{new Date(project.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
               </div>
-              {/* Stats mini */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{tasks.length}</div><div className="text-xs text-gray-400 mt-0.5">Tareas</div></div>
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{files.length}</div><div className="text-xs text-gray-400 mt-0.5">Archivos</div></div>
@@ -501,12 +543,17 @@ export default function ProjectDetailPage() {
                 <button onClick={() => setTaskView('kanban')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors ${taskView === 'kanban' ? 'bg-fp-cerulean/10 text-fp-cerulean' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark'}`}><LayoutGrid size={13} /> Kanban</button>
                 <button onClick={() => setTaskView('list')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors ${taskView === 'list' ? 'bg-fp-cerulean/10 text-fp-cerulean' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark'}`}><List size={13} /> Lista</button>
               </div>
-              <button onClick={openCreateTask} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-fp-punch-red text-white text-sm font-semibold hover:bg-fp-punch-red/90 transition-colors"><Plus size={14} /> Nueva tarea</button>
+              <button onClick={() => openCreateTask()} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-fp-punch-red text-white text-sm font-semibold hover:bg-fp-punch-red/90 transition-colors"><Plus size={14} /> Nueva tarea</button>
             </div>
 
             {/* KANBAN */}
             {taskView === 'kanban' && (
               <div className="flex gap-4 overflow-x-auto pb-4">
+                {columns.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center py-16 text-sm text-gray-400 dark:text-fp-text-tertiary">
+                    No hay columnas. Hacé click en "Crear columna" →
+                  </div>
+                )}
                 {columns.map(col => {
                   const colTasks = tasks.filter(t => t.column_id === col.id)
                   return (
@@ -518,7 +565,7 @@ export default function ProjectDetailPage() {
                         {renamingCol === col.id ? (
                           <input autoFocus value={colRenameVal} onChange={e => setColRenameVal(e.target.value)} onBlur={() => renameColumn(col.id)} onKeyDown={e => { if (e.key === 'Enter') renameColumn(col.id); if (e.key === 'Escape') setRenamingCol(null) }} className="flex-1 text-xs font-semibold bg-transparent outline-none border-b border-fp-cerulean text-fp-navy dark:text-fp-honeydew" />
                         ) : (
-                          <button onDoubleClick={() => { setRenamingCol(col.id); setColRenameVal(col.name) }} className="flex items-center gap-1.5 text-xs font-semibold text-fp-navy dark:text-fp-honeydew">
+                          <button onDoubleClick={() => { setRenamingCol(col.id); setColRenameVal(col.name) }} className="flex items-center gap-1.5 text-xs font-semibold text-fp-navy dark:text-fp-honeydew" title="Doble click para renombrar">
                             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
                             {col.name}
                           </button>
@@ -547,44 +594,103 @@ export default function ProjectDetailPage() {
                           )
                         })}
                       </div>
+                      {/* Agregar tarea dentro de la columna */}
                       <div className="p-2 border-t border-gray-100 dark:border-fp-border-dark">
-                        <button onClick={() => { setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: col.id, tags: '', assignees: [] }); setEditingTask(null); setShowTaskModal(true) }} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark transition-colors">
+                        <button onClick={() => openCreateTask(col.id)} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark transition-colors">
                           <Plus size={12} /> Agregar tarea
                         </button>
                       </div>
                     </div>
                   )
                 })}
-                <button onClick={addColumn} className="flex-shrink-0 w-12 h-12 mt-0.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark flex items-center justify-center text-gray-300 hover:text-fp-cerulean hover:border-fp-cerulean/30 transition-colors">
-                  <Plus size={16} />
+                {/* Botón Crear Columna — con texto */}
+                <button onClick={addColumn}
+                  className="flex-shrink-0 h-12 mt-0.5 px-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark flex items-center gap-2 text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors whitespace-nowrap self-start">
+                  <Plus size={14} /> Crear columna
                 </button>
               </div>
             )}
 
-            {/* LIST */}
+            {/* LISTA */}
             {taskView === 'list' && (
-              <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
-                {tasks.length === 0 ? (
-                  <div className="px-5 py-12 text-center"><CheckCircle2 size={32} className="text-gray-300 dark:text-fp-text-tertiary mx-auto mb-3" /><p className="text-sm text-gray-400 dark:text-fp-text-tertiary">No hay tareas para este proyecto todavía</p></div>
-                ) : tasks.map(task => {
-                  const pc = priorityConfig[task.priority] || priorityConfig.medium
-                  const col = columns.find(c => c.id === task.column_id)
-                  return (
-                    <div key={task.id} className="flex items-center gap-4 px-5 py-3.5 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors group">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} title={pc.label} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{task.title}</div>
-                        {task.due_date && <div className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-0.5 flex items-center gap-1"><Calendar size={10} />{new Date(task.due_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</div>}
-                      </div>
-                      {col && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: col.color + '20', color: col.color }}>{col.name}</span>}
-                      {task.tags && task.tags.slice(0, 2).map(tag => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-fp-cerulean/10 text-fp-cerulean">{tag}</span>)}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditTask(task)} className="p-1 rounded text-gray-400 hover:text-fp-cerulean"><Pencil size={13} /></button>
-                        <button onClick={() => deleteTask(task.id, task.title)} className="p-1 rounded text-gray-400 hover:text-fp-punch-red"><Trash2 size={13} /></button>
-                      </div>
+              <div className="space-y-4">
+                {/* Agrupar por columna */}
+                {columns.length === 0 ? (
+                  <div className="bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-10 text-center">
+                    <p className="text-sm text-gray-400 dark:text-fp-text-tertiary mb-3">No hay columnas todavía</p>
+                    <button onClick={addColumn} className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors mx-auto">
+                      <Plus size={14} /> Crear columna
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {columns.map(col => {
+                      const colTasks = tasks.filter(t => t.column_id === col.id)
+                      return (
+                        <div key={col.id} className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
+                          {/* Header de columna */}
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-fp-border-dark">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: col.color }} />
+                              <span className="text-xs font-semibold text-fp-navy dark:text-fp-honeydew">{col.name}</span>
+                              <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-fp-hover-dark px-1.5 py-0.5 rounded-full">{colTasks.length}</span>
+                            </div>
+                            <button onClick={() => openCreateTask(col.id)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-fp-cerulean transition-colors">
+                              <Plus size={11} /> Agregar
+                            </button>
+                          </div>
+                          {/* Tareas de esta columna */}
+                          {colTasks.length === 0 ? (
+                            <div className="px-4 py-3 text-xs text-gray-400 dark:text-fp-text-tertiary italic">Sin tareas en esta columna</div>
+                          ) : colTasks.map(task => {
+                            const pc = priorityConfig[task.priority] || priorityConfig.medium
+                            return (
+                              <div key={task.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors group">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} title={pc.label} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{task.title}</div>
+                                  {task.due_date && <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Calendar size={10} />{new Date(task.due_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</div>}
+                                </div>
+                                {task.tags && task.tags.slice(0, 2).map(tag => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-fp-cerulean/10 text-fp-cerulean">{tag}</span>)}
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => openEditTask(task)} className="p-1 rounded text-gray-400 hover:text-fp-cerulean"><Pencil size={13} /></button>
+                                  <button onClick={() => deleteTask(task.id, task.title)} className="p-1 rounded text-gray-400 hover:text-fp-punch-red"><Trash2 size={13} /></button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                    {/* Crear columna desde la vista lista */}
+                    <button onClick={addColumn}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors">
+                      <Plus size={14} /> Crear columna
+                    </button>
+                  </>
+                )}
+                {/* Tareas sin columna asignada */}
+                {tasks.filter(t => !t.column_id).length > 0 && (
+                  <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-fp-border-dark">
+                      <span className="w-2.5 h-2.5 rounded-full bg-gray-400 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-fp-navy dark:text-fp-honeydew">Sin columna</span>
                     </div>
-                  )
-                })}
+                    {tasks.filter(t => !t.column_id).map(task => {
+                      const pc = priorityConfig[task.priority] || priorityConfig.medium
+                      return (
+                        <div key={task.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors group">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} />
+                          <div className="flex-1 min-w-0"><div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{task.title}</div></div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEditTask(task)} className="p-1 rounded text-gray-400 hover:text-fp-cerulean"><Pencil size={13} /></button>
+                            <button onClick={() => deleteTask(task.id, task.title)} className="p-1 rounded text-gray-400 hover:text-fp-punch-red"><Trash2 size={13} /></button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -593,7 +699,6 @@ export default function ProjectDetailPage() {
         {/* ────────────── TAB: ARCHIVOS ────────────── */}
         {activeTab === 'files' && (
           <div>
-            {/* Toggle Fee / Proyecto */}
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center bg-gray-100 dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-lg p-1 gap-1">
                 <button onClick={() => setFileMode('project')} className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${fileMode === 'project' ? 'bg-white dark:bg-fp-bg-dark text-fp-navy dark:text-fp-honeydew shadow-sm' : 'text-gray-400 dark:text-fp-text-tertiary hover:text-fp-navy dark:hover:text-fp-honeydew'}`}>Proyecto Específico</button>
@@ -602,7 +707,7 @@ export default function ProjectDetailPage() {
               <button onClick={() => setShowUpload(!showUpload)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-fp-punch-red/10 text-fp-punch-red text-sm font-semibold hover:bg-fp-punch-red/20 transition-colors"><Upload size={14} /> Subir archivos</button>
             </div>
             {fileMode === 'fee' && !project.clients?.drive_fee_folder_id && (
-              <div className="mb-4 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500">⚠ El cliente asociado a este proyecto no tiene carpeta de Fee Mensual en Drive.</div>
+              <div className="mb-4 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500">⚠ El cliente no tiene carpeta de Fee Mensual en Drive.</div>
             )}
 
             {showUpload && (
@@ -618,10 +723,8 @@ export default function ProjectDetailPage() {
                 <div className="mb-4 border border-gray-200 dark:border-fp-border-dark rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Tag size={14} className="text-fp-cerulean flex-shrink-0" /><span className="text-sm font-medium text-fp-navy dark:text-fp-honeydew">Nomenclatura Feel Pixel</span></div>
-                    {/* BUG #2 FIX: overflow-hidden evita que el thumb se salga del track */}
-                    <button onClick={() => setForceNaming(!forceNaming)} className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 overflow-hidden ${forceNaming ? 'bg-fp-cerulean' : 'bg-gray-300 dark:bg-fp-border-dark'}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${forceNaming ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
+                    {/* FIX TOGGLE: usa ToggleSwitch reutilizable con left positioning */}
+                    <ToggleSwitch on={forceNaming} onToggle={() => setForceNaming(!forceNaming)} />
                   </div>
                   {forceNaming && (
                     <div className="mt-3 space-y-3">
@@ -642,7 +745,7 @@ export default function ProjectDetailPage() {
                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-6 cursor-pointer hover:border-fp-cerulean transition-colors">
                   {uploading ? <Loader2 size={28} className="text-fp-cerulean animate-spin mb-2" /> : <Upload size={28} className="text-gray-400 mb-2" />}
                   <p className="text-sm text-fp-navy dark:text-fp-honeydew font-medium">{uploading ? 'Subiendo a Drive...' : 'Hacé click o arrastrá archivos acá'}</p>
-                  <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mt-1">Se guardan en la carpeta Drive de este {fileMode === 'fee' ? 'Fee Mensual' : 'proyecto'}</p>
+                  <p className="text-xs text-gray-400 mt-1">Se guardan en la carpeta Drive de este {fileMode === 'fee' ? 'Fee Mensual' : 'proyecto'}</p>
                   <input type="file" multiple className="hidden" disabled={uploading} onChange={e => e.target.files && handleUpload(e.target.files)} />
                 </label>
               </div>
@@ -650,24 +753,24 @@ export default function ProjectDetailPage() {
 
             {files.length === 0 ? (
               <div className="bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-12 text-center">
-                <FolderOpen size={40} className="text-gray-300 dark:text-fp-text-tertiary mx-auto mb-3" />
+                <FolderOpen size={40} className="text-gray-300 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew mb-1">No hay archivos todavía</h3>
-                <p className="text-xs text-gray-400 dark:text-fp-text-tertiary">Subí el primer archivo con el botón de arriba</p>
+                <p className="text-xs text-gray-400">Subí el primer archivo con el botón de arriba</p>
               </div>
             ) : (
               <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[1fr_100px_100px_60px_100px] gap-4 px-5 py-3 border-b border-gray-100 dark:border-fp-border-dark text-xs text-gray-400 dark:text-fp-text-tertiary uppercase tracking-wider font-medium">
+                <div className="grid grid-cols-[1fr_100px_100px_60px_100px] gap-4 px-5 py-3 border-b border-gray-100 dark:border-fp-border-dark text-xs text-gray-400 uppercase tracking-wider font-medium">
                   <span>Nombre</span><span>Tipo</span><span>Tamaño</span><span>Vis.</span><span className="text-right">Acciones</span>
                 </div>
                 {files.map(f => { const IC = fileTypeIcons[f.file_type] || File; const cc = fileTypeColors[f.file_type] || fileTypeColors.other; return (
                   <div key={f.id} className="grid grid-cols-[1fr_100px_100px_60px_100px] gap-4 px-5 py-3 border-b border-gray-50 dark:border-fp-border-dark last:border-0 items-center hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cc}`}><IC size={13} /></div>
-                      <div className="min-w-0"><div className="text-sm font-medium text-fp-navy dark:text-fp-honeydew truncate">{f.name}</div><div className="text-[10px] text-gray-400 dark:text-fp-text-tertiary">v{f.version} · {new Date(f.created_at).toLocaleDateString('es-AR')}{f.drive_file_id && <span className="ml-1 text-fp-cerulean">· Drive</span>}</div></div>
+                      <div className="min-w-0"><div className="text-sm font-medium text-fp-navy dark:text-fp-honeydew truncate">{f.name}</div><div className="text-[10px] text-gray-400">v{f.version} · {new Date(f.created_at).toLocaleDateString('es-AR')}{f.drive_file_id && <span className="ml-1 text-fp-cerulean">· Drive</span>}</div></div>
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-md w-fit ${cc}`}>{f.file_type}</span>
-                    <span className="text-xs text-gray-400 dark:text-fp-text-tertiary font-mono">{formatSize(f.size_bytes)}</span>
-                    <button onClick={() => toggleVisibility(f)} className={`p-1 rounded-md transition-colors ${f.visible_to_client ? 'text-fp-cerulean bg-fp-cerulean/10' : 'text-gray-400 dark:text-fp-text-tertiary hover:text-fp-cerulean'}`}>{f.visible_to_client ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                    <span className="text-xs text-gray-400 font-mono">{formatSize(f.size_bytes)}</span>
+                    <button onClick={() => toggleVisibility(f)} className={`p-1 rounded-md transition-colors ${f.visible_to_client ? 'text-fp-cerulean bg-fp-cerulean/10' : 'text-gray-400 hover:text-fp-cerulean'}`}>{f.visible_to_client ? <Eye size={14} /> : <EyeOff size={14} />}</button>
                     <div className="flex items-center gap-1 justify-end">
                       {f.url && <a href={f.url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-md text-gray-400 hover:text-fp-cerulean hover:bg-fp-cerulean/10 transition-colors"><ExternalLink size={14} /></a>}
                       <button onClick={() => deleteFile(f)} className="p-1.5 rounded-md text-gray-400 hover:text-fp-punch-red hover:bg-fp-punch-red/10 transition-colors"><Trash2 size={14} /></button>
@@ -684,13 +787,12 @@ export default function ProjectDetailPage() {
           <div>
             {!project.client_id ? (
               <div className="bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-12 text-center">
-                <Palette size={40} className="text-gray-300 dark:text-fp-text-tertiary mx-auto mb-3" />
+                <Palette size={40} className="text-gray-300 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew mb-1">Sin cliente asociado</h3>
-                <p className="text-xs text-gray-400 dark:text-fp-text-tertiary">Asociá este proyecto a un cliente para acceder al branding</p>
+                <p className="text-xs text-gray-400">Asociá este proyecto a un cliente para acceder al branding</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-6">
-                {/* Colors + Fonts */}
                 <div className="col-span-2 space-y-5">
                   {/* Colors */}
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
@@ -702,18 +804,18 @@ export default function ProjectDetailPage() {
                       <div className="px-5 py-4 border-b border-gray-100 dark:border-fp-border-dark bg-gray-50 dark:bg-fp-hover-dark">
                         <div className="flex items-end gap-3">
                           <div><label className={labelCls}>Nombre</label><input value={colorForm.name} onChange={e => setColorForm({ ...colorForm, name: e.target.value })} placeholder="Ej: Primary Blue" className={inputCls + ' w-40'} /></div>
-                          <div><label className={labelCls}>Color</label><div className="flex items-center gap-2"><input type="color" value={colorForm.hex} onChange={e => setColorForm({ ...colorForm, hex: e.target.value })} className="w-10 h-8 rounded cursor-pointer border border-gray-200 dark:border-fp-border-dark" /><input value={colorForm.hex} onChange={e => setColorForm({ ...colorForm, hex: e.target.value })} className={inputCls + ' w-28 font-mono'} /></div></div>
+                          <div><label className={labelCls}>Color</label><div className="flex items-center gap-2"><input type="color" value={colorForm.hex} onChange={e => setColorForm({ ...colorForm, hex: e.target.value })} className="w-10 h-8 rounded cursor-pointer border border-gray-200" /><input value={colorForm.hex} onChange={e => setColorForm({ ...colorForm, hex: e.target.value })} className={inputCls + ' w-28 font-mono'} /></div></div>
                           <button onClick={saveColor} className="px-4 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90">Guardar</button>
                           <button onClick={() => setShowColorForm(false)} className="px-3 py-2 text-gray-400 hover:text-fp-punch-red"><X size={15} /></button>
                         </div>
                       </div>
                     )}
                     <div className="p-5">
-                      {brandColors.length === 0 ? <p className="text-sm text-gray-400 dark:text-fp-text-tertiary italic">Sin colores definidos</p> : (
+                      {brandColors.length === 0 ? <p className="text-sm text-gray-400 italic">Sin colores definidos</p> : (
                         <div className="flex flex-wrap gap-3">
                           {brandColors.map(c => (
                             <div key={c.id} className="flex items-center gap-2 border border-gray-200 dark:border-fp-border-dark rounded-lg p-2.5 group">
-                              <div className="w-8 h-8 rounded-lg flex-shrink-0 border border-gray-100 dark:border-fp-border-dark" style={{ background: c.hex }} />
+                              <div className="w-8 h-8 rounded-lg flex-shrink-0 border border-gray-100" style={{ background: c.hex }} />
                               <div><div className="text-xs font-medium text-fp-navy dark:text-fp-honeydew">{c.name}</div><div className="text-[10px] font-mono text-gray-400">{c.hex.toUpperCase()}</div></div>
                               <button onClick={() => deleteColor(c.id)} className="ml-1 text-gray-200 hover:text-fp-punch-red opacity-0 group-hover:opacity-100 transition-all"><X size={12} /></button>
                             </div>
@@ -722,7 +824,6 @@ export default function ProjectDetailPage() {
                       )}
                     </div>
                   </div>
-
                   {/* Fonts */}
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
                     <div className="px-5 py-3 border-b border-gray-100 dark:border-fp-border-dark flex items-center justify-between">
@@ -744,7 +845,7 @@ export default function ProjectDetailPage() {
                       </div>
                     )}
                     <div className="p-5">
-                      {brandFonts.length === 0 ? <p className="text-sm text-gray-400 dark:text-fp-text-tertiary italic">Sin tipografías definidas</p> : (
+                      {brandFonts.length === 0 ? <p className="text-sm text-gray-400 italic">Sin tipografías definidas</p> : (
                         <div className="space-y-2">
                           {brandFonts.map(f => (
                             <div key={f.id} className="flex items-center justify-between border border-gray-200 dark:border-fp-border-dark rounded-lg px-4 py-3 group">
@@ -760,19 +861,18 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Drive folders sidebar — BUG #3 FIX: links reales */}
+                {/* Drive folders */}
                 <div className="space-y-4">
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2"><Layers size={14} className="text-fp-cerulean" /><h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">Carpetas Drive</h3></div>
-                    <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mb-4">Material de marca en Google Drive</p>
-                    {loadingBrandFolders && <p className="text-xs text-gray-400 dark:text-fp-text-tertiary italic mb-2">Cargando carpetas...</p>}
+                    <p className="text-xs text-gray-400 mb-4">Material de marca en Google Drive</p>
+                    {loadingBrandFolders && <p className="text-xs text-gray-400 italic mb-2">Cargando...</p>}
                     {brandingDriveFolders.map(folder => (
                       folder.url ? (
                         <a key={folder.label} href={folder.url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark rounded-md px-1 -mx-1 transition-colors cursor-pointer">
+                          className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark rounded-md px-1 -mx-1 transition-colors">
                           <div className="flex items-center gap-2"><FolderOpen size={13} className="text-fp-cerulean flex-shrink-0" /><span className="text-xs text-fp-navy dark:text-fp-honeydew">{folder.label}</span></div>
-                          <ExternalLink size={12} className="text-fp-cerulean flex-shrink-0" />
+                          <ExternalLink size={12} className="text-fp-cerulean" />
                         </a>
                       ) : (
                         <div key={folder.label} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0 opacity-50">
@@ -781,9 +881,6 @@ export default function ProjectDetailPage() {
                         </div>
                       )
                     ))}
-                    {!loadingBrandFolders && !project.clients?.drive_folder_id && (
-                      <p className="text-xs text-amber-500 mt-2">⚠ El cliente no tiene carpeta Drive configurada.</p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -836,6 +933,7 @@ export default function ProjectDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Columna</label>
                   <select value={taskForm.column_id} onChange={e => setTaskForm({ ...taskForm, column_id: e.target.value })} className={inputCls}>
+                    <option value="">— Sin columna —</option>
                     {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
@@ -847,7 +945,7 @@ export default function ProjectDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls}>Fecha límite</label><input type="date" value={taskForm.due_date} onChange={e => setTaskForm({ ...taskForm, due_date: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Etiquetas (separadas por coma)</label><input type="text" value={taskForm.tags} onChange={e => setTaskForm({ ...taskForm, tags: e.target.value })} placeholder="Ej: diseño, urgente" className={inputCls} /></div>
+                <div><label className={labelCls}>Etiquetas (por coma)</label><input type="text" value={taskForm.tags} onChange={e => setTaskForm({ ...taskForm, tags: e.target.value })} placeholder="diseño, urgente" className={inputCls} /></div>
               </div>
               <div><label className={labelCls}>Asignar a</label>
                 <div className="flex flex-wrap gap-2">
@@ -855,13 +953,13 @@ export default function ProjectDetailPage() {
                     const selected = taskForm.assignees.includes(p.id)
                     return (
                       <button key={p.id} onClick={() => setTaskForm({ ...taskForm, assignees: selected ? taskForm.assignees.filter(a => a !== p.id) : [...taskForm.assignees, p.id] })}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${selected ? 'bg-fp-cerulean text-white' : 'border border-gray-200 dark:border-fp-border-dark text-gray-500 dark:text-fp-text-secondary hover:border-fp-cerulean'}`}>
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${selected ? 'bg-fp-cerulean text-white' : 'border border-gray-200 dark:border-fp-border-dark text-gray-500 hover:border-fp-cerulean'}`}>
                         <span className="w-4 h-4 rounded-full bg-fp-cerulean/20 flex items-center justify-center text-[8px] font-bold">{(p.full_name || p.email || '?')[0].toUpperCase()}</span>
                         {p.full_name || p.email}
                       </button>
                     )
                   })}
-                  {profiles.length === 0 && <p className="text-xs text-gray-400 dark:text-fp-text-tertiary italic">Sin miembros en el equipo</p>}
+                  {profiles.length === 0 && <p className="text-xs text-gray-400 italic">Sin miembros en el equipo</p>}
                 </div>
               </div>
             </div>
