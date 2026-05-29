@@ -70,6 +70,83 @@ const emptyForm = { name: '', description: '', client_id: '', status: 'active', 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean"
 const labelClass = "text-xs text-gray-500 dark:text-fp-text-secondary block mb-1"
 
+// ─── ProjectModal FUERA del componente principal ───────────────────────────
+// (CRÍTICO: si está adentro, React destruye y recrea el modal con cada tecla
+//  haciendo que el input pierda el foco después de cada letra)
+function ProjectModal({
+  f, setF, title, onSave, onCancel, drStatus, clients, saving,
+}: {
+  f: typeof emptyForm
+  setF: (v: typeof emptyForm) => void
+  title: string
+  onSave: () => void
+  onCancel: () => void
+  drStatus?: string
+  clients: Client[]
+  saving: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
+          <h2 className="text-base font-semibold text-fp-navy dark:text-fp-honeydew">{title}</h2>
+          <button onClick={onCancel} className="text-gray-400 hover:text-fp-punch-red"><X size={18} /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div><label className={labelClass}>Nombre *</label><input type="text" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Ej: eCommerce Naturae" className={inputClass} /></div>
+          <div><label className={labelClass}>Descripción</label><textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={2} className={inputClass + ' resize-none'} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelClass}>Cliente</label>
+              <select value={f.client_id} onChange={e => setF({ ...f, client_id: e.target.value })} className={inputClass}>
+                <option value="">Proyecto interno</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div><label className={labelClass}>Estado</label>
+              <select value={f.status} onChange={e => setF({ ...f, status: e.target.value })} className={inputClass}>
+                <option value="draft">Borrador</option><option value="active">Activo</option>
+                <option value="paused">Pausado</option><option value="completed">Completado</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2"><label className={labelClass}>Presupuesto</label><input type="number" value={f.budget} onChange={e => setF({ ...f, budget: e.target.value })} placeholder="0.00" className={inputClass} /></div>
+            <div><label className={labelClass}>Moneda</label>
+              <select value={f.currency} onChange={e => setF({ ...f, currency: e.target.value })} className={inputClass}>
+                <option value="USD">USD</option><option value="ARS">ARS</option><option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelClass}>Inicio</label><input type="date" value={f.start_date} onChange={e => setF({ ...f, start_date: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass}>Entrega</label><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} className={inputClass} /></div>
+          </div>
+          <div><label className={labelClass}>Link repo GitHub</label><input type="url" value={f.github_repo_url} onChange={e => setF({ ...f, github_repo_url: e.target.value })} placeholder="https://github.com/..." className={inputClass} /></div>
+          {title === 'Nuevo proyecto' && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fp-cerulean/5 border border-fp-cerulean/15 text-xs text-fp-cerulean">
+              <FolderSync size={13} className="flex-shrink-0" />
+              <span>{f.client_id ? 'Se creará una carpeta automáticamente en Drive dentro de ese cliente.' : 'Proyecto interno: se creará la carpeta en 04_AGENCIA_INTERNA → 04_Proyectos.'}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100 dark:border-fp-border-dark">
+          <div className="text-xs min-h-[16px]">
+            {drStatus === 'creating' && <span className="text-fp-cerulean animate-pulse">Creando carpeta en Drive...</span>}
+            {drStatus === 'done' && <span className="text-green-500">✓ Carpeta creada en Drive</span>}
+            {drStatus === 'error' && <span className="text-amber-500">⚠ No se pudo crear en Drive (el proyecto se guardó igual)</span>}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-fp-hover-dark">Cancelar</button>
+            <button onClick={onSave} disabled={!f.name.trim() || saving} className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50">
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectsPage() {
   const supabase = createClient()
   const [projects, setProjects] = useState<Project[]>([])
@@ -112,13 +189,11 @@ export default function ProjectsPage() {
     return total > 0 ? Math.round((done / total) * 100) : 0
   }
 
-  // Stats
   const activeCount = projects.filter(p => p.status === 'active').length
   const completedCount = projects.filter(p => p.status === 'completed').length
   const pendingTasksCount = projects.reduce((acc, p) => acc + (p.tasks?.filter(t => t.status !== 'done').length || 0), 0)
   const avgProgress = projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + getProgress(p), 0) / projects.length) : 0
 
-  // Filter
   let filtered = projects
     .filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.clients?.name?.toLowerCase().includes(search.toLowerCase()))
   if (filterStatus !== 'all') filtered = filtered.filter(p => p.status === filterStatus)
@@ -132,7 +207,6 @@ export default function ProjectsPage() {
     draft: projects.filter(p => p.status === 'draft').length,
   }
 
-  // Create
   const handleCreate = async () => {
     if (!form.name.trim()) return
     setSaving(true); setDriveStatus('idle')
@@ -167,7 +241,6 @@ export default function ProjectsPage() {
     setShowCreate(false); setForm(emptyForm); setDriveStatus('idle'); await fetchAll(); setSaving(false)
   }
 
-  // Edit
   const openEdit = (p: Project) => {
     setEditingProject(p)
     setEditForm({ name: p.name, description: p.description || '', client_id: p.client_id || '', status: p.status, budget: p.budget?.toString() || '', currency: p.currency || 'USD', start_date: p.start_date || '', due_date: p.due_date || '', github_repo_url: p.github_repo_url || '' })
@@ -184,70 +257,6 @@ export default function ProjectsPage() {
       github_repo_url: editForm.github_repo_url.trim() || null,
     }).eq('id', editingProject.id)
     setShowEdit(false); setEditingProject(null); await fetchAll(); setSaving(false)
-  }
-
-  // Shared form modal
-  function ProjectModal({ f, setF, title, onSave, onCancel, drStatus }: { f: typeof emptyForm; setF: (v: typeof emptyForm) => void; title: string; onSave: () => void; onCancel: () => void; drStatus?: string }) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-        <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
-            <h2 className="text-base font-semibold text-fp-navy dark:text-fp-honeydew">{title}</h2>
-            <button onClick={onCancel} className="text-gray-400 hover:text-fp-punch-red"><X size={18} /></button>
-          </div>
-          <div className="px-6 py-5 space-y-4">
-            <div><label className={labelClass}>Nombre *</label><input type="text" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Ej: eCommerce Naturae" className={inputClass} /></div>
-            <div><label className={labelClass}>Descripción</label><textarea value={f.description} onChange={e => setF({ ...f, description: e.target.value })} rows={2} className={inputClass + ' resize-none'} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelClass}>Cliente</label>
-                <select value={f.client_id} onChange={e => setF({ ...f, client_id: e.target.value })} className={inputClass}>
-                  <option value="">Proyecto interno</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div><label className={labelClass}>Estado</label>
-                <select value={f.status} onChange={e => setF({ ...f, status: e.target.value })} className={inputClass}>
-                  <option value="draft">Borrador</option><option value="active">Activo</option>
-                  <option value="paused">Pausado</option><option value="completed">Completado</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2"><label className={labelClass}>Presupuesto</label><input type="number" value={f.budget} onChange={e => setF({ ...f, budget: e.target.value })} placeholder="0.00" className={inputClass} /></div>
-              <div><label className={labelClass}>Moneda</label>
-                <select value={f.currency} onChange={e => setF({ ...f, currency: e.target.value })} className={inputClass}>
-                  <option value="USD">USD</option><option value="ARS">ARS</option><option value="EUR">EUR</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelClass}>Inicio</label><input type="date" value={f.start_date} onChange={e => setF({ ...f, start_date: e.target.value })} className={inputClass} /></div>
-              <div><label className={labelClass}>Entrega</label><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} className={inputClass} /></div>
-            </div>
-            <div><label className={labelClass}>Link repo GitHub</label><input type="url" value={f.github_repo_url} onChange={e => setF({ ...f, github_repo_url: e.target.value })} placeholder="https://github.com/..." className={inputClass} /></div>
-            {title === 'Nuevo proyecto' && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fp-cerulean/5 border border-fp-cerulean/15 text-xs text-fp-cerulean">
-                <FolderSync size={13} className="flex-shrink-0" />
-                <span>{f.client_id ? 'Se creará una carpeta automáticamente en Drive dentro de ese cliente.' : 'Proyecto interno: se creará la carpeta en 04_AGENCIA_INTERNA → 04_Proyectos.'}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100 dark:border-fp-border-dark">
-            <div className="text-xs min-h-[16px]">
-              {drStatus === 'creating' && <span className="text-fp-cerulean animate-pulse">Creando carpeta en Drive...</span>}
-              {drStatus === 'done' && <span className="text-green-500">✓ Carpeta creada en Drive</span>}
-              {drStatus === 'error' && <span className="text-amber-500">⚠ No se pudo crear en Drive (el proyecto se guardó igual)</span>}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-fp-hover-dark">Cancelar</button>
-              <button onClick={onSave} disabled={!f.name.trim() || saving} className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50">
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -437,10 +446,25 @@ export default function ProjectsPage() {
       </div>
 
       {showCreate && (
-        <ProjectModal f={form} setF={setForm} title="Nuevo proyecto" onSave={handleCreate} onCancel={() => { setShowCreate(false); setForm(emptyForm) }} drStatus={driveStatus} />
+        <ProjectModal
+          f={form} setF={setForm}
+          title="Nuevo proyecto"
+          onSave={handleCreate}
+          onCancel={() => { setShowCreate(false); setForm(emptyForm) }}
+          drStatus={driveStatus}
+          clients={clients}
+          saving={saving}
+        />
       )}
       {showEdit && editingProject && (
-        <ProjectModal f={editForm} setF={setEditForm} title={`Editar: ${editingProject.name}`} onSave={handleSaveEdit} onCancel={() => { setShowEdit(false); setEditingProject(null) }} />
+        <ProjectModal
+          f={editForm} setF={setEditForm}
+          title={`Editar: ${editingProject.name}`}
+          onSave={handleSaveEdit}
+          onCancel={() => { setShowEdit(false); setEditingProject(null) }}
+          clients={clients}
+          saving={saving}
+        />
       )}
     </div>
   )

@@ -92,7 +92,7 @@ const DEFAULT_COLUMNS = [
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean"
 const labelCls = "text-xs text-gray-500 dark:text-fp-text-secondary block mb-1"
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -139,6 +139,14 @@ export default function ProjectDetailPage() {
   const [showFontForm, setShowFontForm] = useState(false)
   const [colorForm, setColorForm] = useState({ name: '', hex: '#457B9D' })
   const [fontForm, setFontForm] = useState({ name: '', type: 'sans' })
+  // BUG #3 FIX: estado para carpetas Drive del branding (cargadas dinámicamente)
+  const [brandingDriveFolders, setBrandingDriveFolders] = useState<{label: string; url: string | null; id: string | null}[]>([
+    { label: 'Gráfica oficial',    url: null, id: null },
+    { label: 'Fuentes cliente',    url: null, id: null },
+    { label: 'Manual de Marca',    url: null, id: null },
+    { label: 'Material del cliente', url: null, id: null },
+  ])
+  const [loadingBrandFolders, setLoadingBrandFolders] = useState(false)
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -172,13 +180,30 @@ export default function ProjectDetailPage() {
     setBrandFonts(fonts.data || [])
   }
 
+  // BUG #3 FIX: carga las subcarpetas reales de 00_Onboarding_Brand
+  const fetchBrandingFolders = async (clientDriveFolderId: string) => {
+    setLoadingBrandFolders(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`/api/drive/get-onboarding-folders?folderId=${encodeURIComponent(clientDriveFolderId)}&providerToken=${encodeURIComponent(session?.provider_token || '')}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.folders && Array.isArray(data.folders)) {
+          setBrandingDriveFolders(data.folders)
+        }
+      }
+    } catch {
+      // silencioso — los links se quedan como null (sin clickear)
+    }
+    setLoadingBrandFolders(false)
+  }
+
   useEffect(() => {
     const init = async () => {
       setLoading(true)
       const proj = await fetchProject()
       let cols = await fetchColumns()
       if (cols.length === 0) {
-        // Create default columns
         const toInsert = DEFAULT_COLUMNS.map(c => ({ ...c, project_id: projectId }))
         const { data: newCols } = await supabase.from('kanban_columns').insert(toInsert).select()
         cols = newCols || []
@@ -190,6 +215,13 @@ export default function ProjectDetailPage() {
     }
     init()
   }, [projectId])
+
+  // BUG #3 FIX: cuando el usuario abre el tab Branding, carga las carpetas Drive
+  useEffect(() => {
+    if (activeTab === 'branding' && project?.clients?.drive_folder_id) {
+      fetchBrandingFolders(project.clients.drive_folder_id)
+    }
+  }, [activeTab, project?.clients?.drive_folder_id])
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
@@ -240,7 +272,6 @@ export default function ProjectDetailPage() {
     }
     if (editingTask) {
       await supabase.from('tasks').update(payload).eq('id', editingTask.id)
-      // Log update
       if (project) await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_updated', description: `Tarea "${taskForm.title}" actualizada` })
     } else {
       await supabase.from('tasks').insert(payload)
@@ -271,7 +302,7 @@ export default function ProjectDetailPage() {
     if (data) setColumns(prev => [...prev, data])
   }
 
-  // ── Files ──────────────────────────────────────────────────────────────────
+  // ── Files ─────────────────────────────────────────────────────────────────
 
   function buildFileName(orig: string) {
     if (!forceNaming || !namingDesc.trim()) return orig
@@ -297,7 +328,6 @@ export default function ProjectDetailPage() {
       const uploadFile = forceNaming ? new window.File([file], finalName, { type: file.type }) : file
       let targetFolderId = folderId
       if (fileMode === 'fee') {
-        // Auto-create date path: YYYY/YYYY-MM_Mes/DD_Dia
         const now = new Date()
         const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
         const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
@@ -322,7 +352,6 @@ export default function ProjectDetailPage() {
         size_bytes: driveData.size || file.size, mime_type: file.type,
         visible_to_client: false, version: forceNaming ? ver : 1, storage_path: null,
       })
-      // Log update
       const { data: userData } = await supabase.auth.getUser()
       await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'file_uploaded', description: `Archivo subido: "${finalName}"` })
       if (forceNaming) ver++
@@ -409,7 +438,7 @@ export default function ProjectDetailPage() {
 
       <div className="p-8">
 
-        {/* ──────────────── TAB: RESUMEN ──────────────── */}
+        {/* ────────────── TAB: RESUMEN ────────────── */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2 space-y-4">
@@ -455,7 +484,7 @@ export default function ProjectDetailPage() {
                 {project.clients && <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><Users size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Cliente</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{project.clients.name}</div></div></div>}
                 <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><FolderOpen size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Creado</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{new Date(project.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
               </div>
-              {/* Stats mini cards */}
+              {/* Stats mini */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{tasks.length}</div><div className="text-xs text-gray-400 mt-0.5">Tareas</div></div>
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{files.length}</div><div className="text-xs text-gray-400 mt-0.5">Archivos</div></div>
@@ -464,7 +493,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ──────────────── TAB: TAREAS ──────────────── */}
+        {/* ────────────── TAB: TAREAS ────────────── */}
         {activeTab === 'tasks' && (
           <div>
             <div className="flex items-center justify-between mb-5">
@@ -519,7 +548,7 @@ export default function ProjectDetailPage() {
                         })}
                       </div>
                       <div className="p-2 border-t border-gray-100 dark:border-fp-border-dark">
-                        <button onClick={() => { const firstCol = col; setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: firstCol.id, tags: '', assignees: [] }); setEditingTask(null); setShowTaskModal(true) }} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark transition-colors">
+                        <button onClick={() => { setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: col.id, tags: '', assignees: [] }); setEditingTask(null); setShowTaskModal(true) }} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark transition-colors">
                           <Plus size={12} /> Agregar tarea
                         </button>
                       </div>
@@ -561,7 +590,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ──────────────── TAB: ARCHIVOS ──────────────── */}
+        {/* ────────────── TAB: ARCHIVOS ────────────── */}
         {activeTab === 'files' && (
           <div>
             {/* Toggle Fee / Proyecto */}
@@ -589,7 +618,8 @@ export default function ProjectDetailPage() {
                 <div className="mb-4 border border-gray-200 dark:border-fp-border-dark rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Tag size={14} className="text-fp-cerulean flex-shrink-0" /><span className="text-sm font-medium text-fp-navy dark:text-fp-honeydew">Nomenclatura Feel Pixel</span></div>
-                    <button onClick={() => setForceNaming(!forceNaming)} className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${forceNaming ? 'bg-fp-cerulean' : 'bg-gray-300 dark:bg-fp-border-dark'}`}>
+                    {/* BUG #2 FIX: overflow-hidden evita que el thumb se salga del track */}
+                    <button onClick={() => setForceNaming(!forceNaming)} className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 overflow-hidden ${forceNaming ? 'bg-fp-cerulean' : 'bg-gray-300 dark:bg-fp-border-dark'}`}>
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${forceNaming ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
@@ -649,7 +679,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ──────────────── TAB: BRANDING ──────────────── */}
+        {/* ────────────── TAB: BRANDING ────────────── */}
         {activeTab === 'branding' && (
           <div>
             {!project.client_id ? (
@@ -660,8 +690,9 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-6">
-                {/* Colors */}
+                {/* Colors + Fonts */}
                 <div className="col-span-2 space-y-5">
+                  {/* Colors */}
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
                     <div className="px-5 py-3 border-b border-gray-100 dark:border-fp-border-dark flex items-center justify-between">
                       <div className="flex items-center gap-2"><Palette size={14} className="text-fp-cerulean" /><h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">Colores de marca</h3></div>
@@ -730,22 +761,29 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
 
-                {/* Drive folders sidebar */}
+                {/* Drive folders sidebar — BUG #3 FIX: links reales */}
                 <div className="space-y-4">
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5">
-                    <div className="flex items-center gap-2 mb-4"><Layers size={14} className="text-fp-cerulean" /><h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">Carpetas Drive</h3></div>
+                    <div className="flex items-center gap-2 mb-2"><Layers size={14} className="text-fp-cerulean" /><h3 className="text-sm font-semibold text-fp-navy dark:text-fp-honeydew">Carpetas Drive</h3></div>
                     <p className="text-xs text-gray-400 dark:text-fp-text-tertiary mb-4">Material de marca en Google Drive</p>
-                    {[
-                      { label: 'Gráfica oficial', path: '01_Gráfica oficial' },
-                      { label: 'Fuentes cliente', path: '02_Fuentes cliente' },
-                      { label: 'Manual de Marca', path: '03_Manual de Marca' },
-                      { label: 'Material del cliente', path: '04_Material provisto' },
-                    ].map(folder => (
-                      <div key={folder.label} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0">
-                        <div className="flex items-center gap-2"><FolderOpen size={13} className="text-fp-cerulean flex-shrink-0" /><span className="text-xs text-fp-navy dark:text-fp-honeydew">{folder.label}</span></div>
-                        <ChevronRight size={12} className="text-gray-300" />
-                      </div>
+                    {loadingBrandFolders && <p className="text-xs text-gray-400 dark:text-fp-text-tertiary italic mb-2">Cargando carpetas...</p>}
+                    {brandingDriveFolders.map(folder => (
+                      folder.url ? (
+                        <a key={folder.label} href={folder.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark rounded-md px-1 -mx-1 transition-colors cursor-pointer">
+                          <div className="flex items-center gap-2"><FolderOpen size={13} className="text-fp-cerulean flex-shrink-0" /><span className="text-xs text-fp-navy dark:text-fp-honeydew">{folder.label}</span></div>
+                          <ExternalLink size={12} className="text-fp-cerulean flex-shrink-0" />
+                        </a>
+                      ) : (
+                        <div key={folder.label} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-fp-border-dark last:border-0 opacity-50">
+                          <div className="flex items-center gap-2"><FolderOpen size={13} className="text-fp-cerulean flex-shrink-0" /><span className="text-xs text-fp-navy dark:text-fp-honeydew">{folder.label}</span></div>
+                          <ChevronRight size={12} className="text-gray-300" />
+                        </div>
+                      )
                     ))}
+                    {!loadingBrandFolders && !project.clients?.drive_folder_id && (
+                      <p className="text-xs text-amber-500 mt-2">⚠ El cliente no tiene carpeta Drive configurada.</p>
+                    )}
                   </div>
                 </div>
               </div>
