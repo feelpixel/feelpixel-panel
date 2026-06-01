@@ -8,7 +8,7 @@ import {
   ArrowLeft, ExternalLink, Calendar, Users, FolderOpen, File, Image, Film,
   FileText, Eye, EyeOff, Trash2, CheckCircle2, Clock, AlertCircle,
   Github, Upload, X, FolderSync, Tag, Loader2, Plus, Pencil, List, LayoutGrid,
-  ChevronRight, Type, Palette, Layers,
+  ChevronRight, Type, Palette, Layers, Link2,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -47,16 +47,16 @@ const STATUS_OPTIONS = [
 ]
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   draft:     { label: 'Borrador',   bg: 'bg-gray-100 dark:bg-fp-text-tertiary/10', text: 'text-gray-500 dark:text-fp-text-tertiary' },
-  active:    { label: 'Activo',     bg: 'bg-fp-cerulean/10',                        text: 'text-fp-cerulean' },
-  paused:    { label: 'Pausado',    bg: 'bg-amber-500/10',                           text: 'text-amber-500' },
-  completed: { label: 'Completado', bg: 'bg-fp-frosted/10',                          text: 'text-fp-frosted' },
+  active:    { label: 'Activo',     bg: 'bg-fp-cerulean/10',                       text: 'text-fp-cerulean' },
+  paused:    { label: 'Pausado',    bg: 'bg-amber-500/10',                          text: 'text-amber-500' },
+  completed: { label: 'Completado', bg: 'bg-fp-frosted/10',                         text: 'text-fp-frosted' },
   archived:  { label: 'Archivado',  bg: 'bg-gray-100 dark:bg-fp-text-tertiary/10',  text: 'text-gray-400' },
 }
-const priorityConfig: Record<string, { label: string; dot: string; border: string }> = {
-  urgent: { label: 'Urgente', dot: 'bg-fp-punch-red', border: 'border-fp-punch-red/30' },
-  high:   { label: 'Alta',    dot: 'bg-amber-500',    border: 'border-amber-500/30' },
-  medium: { label: 'Media',   dot: 'bg-fp-cerulean',  border: 'border-fp-cerulean/30' },
-  low:    { label: 'Baja',    dot: 'bg-gray-400',     border: 'border-gray-300' },
+const priorityConfig: Record<string, { label: string; dot: string; border: string; bg: string }> = {
+  urgent: { label: 'Urgente', dot: 'bg-fp-punch-red',  border: 'border-fp-punch-red/30',  bg: 'bg-fp-punch-red/10 text-fp-punch-red' },
+  high:   { label: 'Alta',    dot: 'bg-amber-500',     border: 'border-amber-500/30',      bg: 'bg-amber-500/10 text-amber-500' },
+  medium: { label: 'Media',   dot: 'bg-fp-cerulean',   border: 'border-fp-cerulean/30',    bg: 'bg-fp-cerulean/10 text-fp-cerulean' },
+  low:    { label: 'Baja',    dot: 'bg-gray-400',      border: 'border-gray-300',          bg: 'bg-gray-100 text-gray-500' },
 }
 const fileTypeIcons: Record<string, typeof File> = { image: Image, video: Film, document: FileText, other: File }
 const fileTypeColors: Record<string, string> = {
@@ -64,7 +64,7 @@ const fileTypeColors: Record<string, string> = {
   document: 'text-fp-cerulean bg-fp-cerulean/10', other: 'text-fp-text-secondary bg-fp-text-secondary/10',
 }
 function formatSize(b: number | null) {
-  if (!b) return '—'
+  if (!b) return '–'
   if (b < 1024) return `${b} B`
   if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
   return `${(b / 1048576).toFixed(1)} MB`
@@ -81,7 +81,7 @@ function getInitials(name: string | null | undefined) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// ── COLUMNAS DEFAULT — Feel Pixel workflow ────────────────────────────────────
+// ── DEFAULT COLUMNS – Feel Pixel workflow ────────────────────────────────────
 const DEFAULT_COLUMNS = [
   { name: 'Presupuesto',      color: '#8a9bb5', order: 0 },
   { name: 'Pre-producción',   color: '#A8DADC', order: 1 },
@@ -94,8 +94,7 @@ const DEFAULT_COLUMNS = [
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean"
 const labelCls = "text-xs text-gray-500 dark:text-fp-text-secondary block mb-1"
 
-// ── Toggle switch reutilizable ─────────────────────────────────────────────
-// FIX: usa left-[2px]/left-[22px] en vez de translate para evitar overflow
+// ── ToggleSwitch ─────────────────────────────────────────────────────────────
 function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button
@@ -107,7 +106,7 @@ function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -129,15 +128,30 @@ export default function ProjectDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState({ name: '', description: '', status: '', start_date: '', due_date: '', github_repo_url: '' })
 
-  // Tasks
+  // Tasks – Notion-style detail panel
   const [taskView, setTaskView] = useState<'list' | 'kanban'>('kanban')
-  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [showTaskDetail, setShowTaskDetail] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
-  const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium', due_date: '', column_id: '', tags: '', assignees: [] as string[] })
-  const [savingTask, setSavingTask] = useState(false)
+  const [taskDetail, setTaskDetail] = useState({
+    title: '', description: '', priority: 'medium', due_date: '',
+    column_id: '', tags: '', assignees: [] as string[],
+    links: [] as { url: string; label: string }[],
+  })
+  const [savingDetail, setSavingDetail] = useState(false)
   const [dragging, setDragging] = useState<string | null>(null)
   const [renamingCol, setRenamingCol] = useState<string | null>(null)
   const [colRenameVal, setColRenameVal] = useState('')
+
+  // Subtasks
+  const [subtasks, setSubtasks] = useState<Task[]>([])
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false)
+  const [newSubtask, setNewSubtask] = useState('')
+  const [addingSubtask, setAddingSubtask] = useState(false)
+
+  // Links
+  const [showLinkForm, setShowLinkForm] = useState(false)
+  const [newLinkUrl, setNewLinkUrl] = useState('')
+  const [newLinkLabel, setNewLinkLabel] = useState('')
 
   // Files
   const [fileMode, setFileMode] = useState<'project' | 'fee'>('project')
@@ -172,15 +186,11 @@ export default function ProjectDetailPage() {
 
   const fetchColumns = async () => {
     const { data, error } = await supabase.from('kanban_columns').select('*').eq('project_id', projectId).order('order')
-    if (error) {
-      console.error('kanban_columns error:', error.message)
-      return []
-    }
+    if (error) { console.error('kanban_columns error:', error.message); return [] }
     return data || []
   }
 
   const fetchTasks = async () => {
-    // Intenta query completa; si falla (columnas nuevas no existen), hace fallback
     const { data, error } = await supabase
       .from('tasks').select('*').eq('project_id', projectId)
       .is('parent_task_id', null).order('order')
@@ -190,6 +200,13 @@ export default function ProjectDetailPage() {
     } else {
       setTasks(data || [])
     }
+  }
+
+  const fetchSubtasks = async (parentId: string) => {
+    setLoadingSubtasks(true)
+    const { data } = await supabase.from('tasks').select('*').eq('parent_task_id', parentId).order('created_at')
+    setSubtasks(data || [])
+    setLoadingSubtasks(false)
   }
 
   const fetchFiles = async () => {
@@ -232,11 +249,8 @@ export default function ProjectDetailPage() {
       if (cols.length === 0) {
         const toInsert = DEFAULT_COLUMNS.map(c => ({ ...c, project_id: projectId }))
         const { data: newCols, error } = await supabase.from('kanban_columns').insert(toInsert).select()
-        if (error) {
-          console.error('Error creando columnas default:', error.message)
-        } else {
-          cols = newCols || []
-        }
+        if (error) { console.error('Error creando columnas default:', error.message) }
+        else { cols = newCols || [] }
       }
       setColumns(cols)
       await Promise.all([fetchTasks(), fetchFiles(), fetchProfiles()])
@@ -275,78 +289,122 @@ export default function ProjectDetailPage() {
     setShowEdit(false); setSaving(false)
   }
 
-  // ── Tasks ─────────────────────────────────────────────────────────────────
+  // ── Tasks – Notion panel ──────────────────────────────────────────────────
 
   const openCreateTask = (colId?: string) => {
     setEditingTask(null)
-    setTaskForm({ title: '', description: '', priority: 'medium', due_date: '', column_id: colId || columns[0]?.id || '', tags: '', assignees: [] })
-    setShowTaskModal(true)
+    setSubtasks([])
+    setTaskDetail({ title: '', description: '', priority: 'medium', due_date: '', column_id: colId || columns[0]?.id || '', tags: '', assignees: [], links: [] })
+    setShowLinkForm(false); setNewLinkUrl(''); setNewLinkLabel('')
+    setAddingSubtask(false); setNewSubtask('')
+    setShowTaskDetail(true)
   }
-  const openEditTask = (t: Task) => {
+
+  const openTaskDetail = (t: Task) => {
     setEditingTask(t)
-    setTaskForm({ title: t.title, description: t.description || '', priority: t.priority || 'medium', due_date: t.due_date || '', column_id: t.column_id || '', tags: (t.tags || []).join(', '), assignees: t.assignees || [] })
-    setShowTaskModal(true)
+    setTaskDetail({
+      title: t.title,
+      description: t.description || '',
+      priority: t.priority || 'medium',
+      due_date: t.due_date || '',
+      column_id: t.column_id || '',
+      tags: (t.tags || []).join(', '),
+      assignees: t.assignees || [],
+      links: t.links || [],
+    })
+    setShowLinkForm(false); setNewLinkUrl(''); setNewLinkLabel('')
+    setAddingSubtask(false); setNewSubtask('')
+    fetchSubtasks(t.id)
+    setShowTaskDetail(true)
   }
-  const saveTask = async () => {
-    if (!taskForm.title.trim()) return
-    setSavingTask(true)
+
+  const saveTaskDetail = async () => {
+    if (!taskDetail.title.trim()) return
+    setSavingDetail(true)
     const { data: userData } = await supabase.auth.getUser()
     const payload: Record<string, unknown> = {
       project_id: projectId,
-      title: taskForm.title.trim(),
+      title: taskDetail.title.trim(),
       status: 'todo',
+      description: taskDetail.description.trim() || null,
+      priority: taskDetail.priority,
+      due_date: taskDetail.due_date || null,
+      column_id: taskDetail.column_id || columns[0]?.id || null,
+      tags: taskDetail.tags ? taskDetail.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      assignees: taskDetail.assignees,
+      links: taskDetail.links,
+      created_by: userData.user?.id,
     }
-    // Columnas nuevas — solo se incluyen si la tabla las tiene
-    try {
-      Object.assign(payload, {
-        description: taskForm.description.trim() || null,
-        priority: taskForm.priority,
-        due_date: taskForm.due_date || null,
-        column_id: taskForm.column_id || columns[0]?.id || null,
-        tags: taskForm.tags ? taskForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        assignees: taskForm.assignees,
-        created_by: userData.user?.id,
-      })
-    } catch {}
 
     if (editingTask) {
       const { error } = await supabase.from('tasks').update(payload).eq('id', editingTask.id)
       if (!error && project) {
-        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_updated', description: `Tarea "${taskForm.title}" actualizada` }).then(() => {})
+        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_updated', description: `Tarea "${taskDetail.title}" actualizada` }).then(() => {})
       }
     } else {
       const { error } = await supabase.from('tasks').insert(payload)
       if (!error && project) {
-        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_created', description: `Nueva tarea: "${taskForm.title}"` }).then(() => {})
+        await supabase.from('project_updates').insert({ project_id: projectId, user_id: userData.user?.id, type: 'task_created', description: `Nueva tarea: "${taskDetail.title}"` }).then(() => {})
       }
     }
-    setShowTaskModal(false); setSavingTask(false); await fetchTasks()
+    setShowTaskDetail(false); setSavingDetail(false); await fetchTasks()
   }
+
   const deleteTask = async (id: string, title: string) => {
     if (!confirm(`¿Eliminar "${title}"?`)) return
     await supabase.from('tasks').delete().eq('id', id)
+    setShowTaskDetail(false)
     await fetchTasks()
   }
+
+  const addSubtask = async () => {
+    if (!newSubtask.trim() || !editingTask) return
+    const { data: userData } = await supabase.auth.getUser()
+    await supabase.from('tasks').insert({
+      project_id: projectId,
+      parent_task_id: editingTask.id,
+      title: newSubtask.trim(),
+      status: 'todo',
+      priority: 'medium',
+      created_by: userData.user?.id,
+    })
+    setNewSubtask('')
+    setAddingSubtask(false)
+    await fetchSubtasks(editingTask.id)
+  }
+
   const moveTask = async (taskId: string, newColId: string) => {
     await supabase.from('tasks').update({ column_id: newColId }).eq('id', taskId)
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, column_id: newColId } : t))
   }
+
   const renameColumn = async (colId: string) => {
     if (!colRenameVal.trim()) { setRenamingCol(null); return }
     await supabase.from('kanban_columns').update({ name: colRenameVal.trim() }).eq('id', colId)
     setColumns(prev => prev.map(c => c.id === colId ? { ...c, name: colRenameVal.trim() } : c))
     setRenamingCol(null)
   }
+
   const addColumn = async () => {
     const name = prompt('Nombre de la nueva columna:')
     if (!name?.trim()) return
     const maxOrder = columns.length > 0 ? Math.max(...columns.map(c => c.order)) + 1 : 0
     const { data, error } = await supabase.from('kanban_columns').insert({ project_id: projectId, name: name.trim(), color: '#457B9D', order: maxOrder }).select().single()
-    if (error) {
-      alert('Error al crear columna. Asegurate de haber ejecutado el SQL de migración en Supabase.')
-      return
-    }
+    if (error) { alert('Error al crear columna. Asegurate de haber ejecutado el SQL de migración en Supabase.'); return }
     if (data) setColumns(prev => [...prev, data])
+  }
+
+  const addLink = () => {
+    if (!newLinkUrl.trim()) return
+    setTaskDetail(prev => ({
+      ...prev,
+      links: [...prev.links, { url: newLinkUrl.trim(), label: newLinkLabel.trim() || newLinkUrl.trim() }]
+    }))
+    setNewLinkUrl(''); setNewLinkLabel(''); setShowLinkForm(false)
+  }
+
+  const removeLink = (i: number) => {
+    setTaskDetail(prev => ({ ...prev, links: prev.links.filter((_, idx) => idx !== i) }))
   }
 
   // ── Files ─────────────────────────────────────────────────────────────────
@@ -485,7 +543,7 @@ export default function ProjectDetailPage() {
 
       <div className="p-8">
 
-        {/* ────────────── TAB: RESUMEN ────────────── */}
+        {/* ── TAB: RESUMEN ── */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2 space-y-4">
@@ -535,7 +593,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ────────────── TAB: TAREAS ────────────── */}
+        {/* ── TAB: TAREAS ── */}
         {activeTab === 'tasks' && (
           <div>
             <div className="flex items-center justify-between mb-5">
@@ -577,11 +635,11 @@ export default function ProjectDetailPage() {
                           const pc = priorityConfig[task.priority] || priorityConfig.medium
                           return (
                             <div key={task.id} draggable onDragStart={() => setDragging(task.id)} onDragEnd={() => setDragging(null)}
-                              className={`bg-white dark:bg-fp-card-dark border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-fp-cerulean/30 transition-colors group ${dragging === task.id ? 'opacity-50' : ''} ${pc.border}`}
+                              onClick={() => openTaskDetail(task)}
+                              className={`bg-white dark:bg-fp-card-dark border rounded-lg p-3 cursor-pointer hover:border-fp-cerulean/40 transition-colors group ${dragging === task.id ? 'opacity-50' : ''} ${pc.border}`}
                             >
                               <div className="flex items-start justify-between gap-2 mb-2">
                                 <p className="text-xs font-medium text-fp-navy dark:text-fp-honeydew leading-snug flex-1">{task.title}</p>
-                                <button onClick={() => openEditTask(task)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-fp-cerulean flex-shrink-0"><Pencil size={11} /></button>
                               </div>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
@@ -590,11 +648,11 @@ export default function ProjectDetailPage() {
                                 </div>
                                 {task.tags && task.tags.length > 0 && <span className="text-[10px] text-fp-cerulean">{task.tags[0]}</span>}
                               </div>
+                              {task.description && <p className="text-[10px] text-gray-400 mt-1.5 line-clamp-2">{task.description}</p>}
                             </div>
                           )
                         })}
                       </div>
-                      {/* Agregar tarea dentro de la columna */}
                       <div className="p-2 border-t border-gray-100 dark:border-fp-border-dark">
                         <button onClick={() => openCreateTask(col.id)} className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-100 dark:hover:bg-fp-hover-dark transition-colors">
                           <Plus size={12} /> Agregar tarea
@@ -603,7 +661,6 @@ export default function ProjectDetailPage() {
                     </div>
                   )
                 })}
-                {/* Botón Crear Columna — con texto */}
                 <button onClick={addColumn}
                   className="flex-shrink-0 h-12 mt-0.5 px-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark flex items-center gap-2 text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors whitespace-nowrap self-start">
                   <Plus size={14} /> Crear columna
@@ -614,13 +671,10 @@ export default function ProjectDetailPage() {
             {/* LISTA */}
             {taskView === 'list' && (
               <div className="space-y-4">
-                {/* Agrupar por columna */}
                 {columns.length === 0 ? (
                   <div className="bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-10 text-center">
                     <p className="text-sm text-gray-400 dark:text-fp-text-tertiary mb-3">No hay columnas todavía</p>
-                    <button onClick={addColumn} className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors mx-auto">
-                      <Plus size={14} /> Crear columna
-                    </button>
+                    <button onClick={addColumn} className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors mx-auto"><Plus size={14} /> Crear columna</button>
                   </div>
                 ) : (
                   <>
@@ -628,48 +682,36 @@ export default function ProjectDetailPage() {
                       const colTasks = tasks.filter(t => t.column_id === col.id)
                       return (
                         <div key={col.id} className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
-                          {/* Header de columna */}
                           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-fp-border-dark">
                             <div className="flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: col.color }} />
                               <span className="text-xs font-semibold text-fp-navy dark:text-fp-honeydew">{col.name}</span>
                               <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-fp-hover-dark px-1.5 py-0.5 rounded-full">{colTasks.length}</span>
                             </div>
-                            <button onClick={() => openCreateTask(col.id)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-fp-cerulean transition-colors">
-                              <Plus size={11} /> Agregar
-                            </button>
+                            <button onClick={() => openCreateTask(col.id)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-fp-cerulean transition-colors"><Plus size={11} /> Agregar</button>
                           </div>
-                          {/* Tareas de esta columna */}
                           {colTasks.length === 0 ? (
                             <div className="px-4 py-3 text-xs text-gray-400 dark:text-fp-text-tertiary italic">Sin tareas en esta columna</div>
                           ) : colTasks.map(task => {
                             const pc = priorityConfig[task.priority] || priorityConfig.medium
                             return (
-                              <div key={task.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors group">
+                              <div key={task.id} onClick={() => openTaskDetail(task)} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 dark:border-fp-border-dark last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors cursor-pointer group">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} title={pc.label} />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{task.title}</div>
                                   {task.due_date && <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Calendar size={10} />{new Date(task.due_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</div>}
                                 </div>
                                 {task.tags && task.tags.slice(0, 2).map(tag => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-fp-cerulean/10 text-fp-cerulean">{tag}</span>)}
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button onClick={() => openEditTask(task)} className="p-1 rounded text-gray-400 hover:text-fp-cerulean"><Pencil size={13} /></button>
-                                  <button onClick={() => deleteTask(task.id, task.title)} className="p-1 rounded text-gray-400 hover:text-fp-punch-red"><Trash2 size={13} /></button>
-                                </div>
+                                <ChevronRight size={13} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                             )
                           })}
                         </div>
                       )
                     })}
-                    {/* Crear columna desde la vista lista */}
-                    <button onClick={addColumn}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors">
-                      <Plus size={14} /> Crear columna
-                    </button>
+                    <button onClick={addColumn} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-fp-border-dark text-xs text-gray-400 hover:text-fp-cerulean hover:border-fp-cerulean/40 transition-colors"><Plus size={14} /> Crear columna</button>
                   </>
                 )}
-                {/* Tareas sin columna asignada */}
                 {tasks.filter(t => !t.column_id).length > 0 && (
                   <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-fp-border-dark">
@@ -679,13 +721,10 @@ export default function ProjectDetailPage() {
                     {tasks.filter(t => !t.column_id).map(task => {
                       const pc = priorityConfig[task.priority] || priorityConfig.medium
                       return (
-                        <div key={task.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors group">
+                        <div key={task.id} onClick={() => openTaskDetail(task)} className="flex items-center gap-4 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors cursor-pointer group">
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} />
                           <div className="flex-1 min-w-0"><div className="text-sm text-fp-navy dark:text-fp-honeydew truncate">{task.title}</div></div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEditTask(task)} className="p-1 rounded text-gray-400 hover:text-fp-cerulean"><Pencil size={13} /></button>
-                            <button onClick={() => deleteTask(task.id, task.title)} className="p-1 rounded text-gray-400 hover:text-fp-punch-red"><Trash2 size={13} /></button>
-                          </div>
+                          <ChevronRight size={13} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       )
                     })}
@@ -696,7 +735,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ────────────── TAB: ARCHIVOS ────────────── */}
+        {/* ── TAB: ARCHIVOS ── */}
         {activeTab === 'files' && (
           <div>
             <div className="flex items-center justify-between mb-5">
@@ -709,7 +748,6 @@ export default function ProjectDetailPage() {
             {fileMode === 'fee' && !project.clients?.drive_fee_folder_id && (
               <div className="mb-4 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500">⚠ El cliente no tiene carpeta de Fee Mensual en Drive.</div>
             )}
-
             {showUpload && (
               <div className="mb-5 bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-5">
                 <div className="flex justify-between items-center mb-4">
@@ -719,11 +757,9 @@ export default function ProjectDetailPage() {
                   </div>
                   <button onClick={() => { setShowUpload(false); setUploadError(null) }} className="text-gray-400 hover:text-fp-punch-red"><X size={16} /></button>
                 </div>
-                {/* Nomenclatura */}
                 <div className="mb-4 border border-gray-200 dark:border-fp-border-dark rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Tag size={14} className="text-fp-cerulean flex-shrink-0" /><span className="text-sm font-medium text-fp-navy dark:text-fp-honeydew">Nomenclatura Feel Pixel</span></div>
-                    {/* FIX TOGGLE: usa ToggleSwitch reutilizable con left positioning */}
                     <ToggleSwitch on={forceNaming} onToggle={() => setForceNaming(!forceNaming)} />
                   </div>
                   {forceNaming && (
@@ -732,7 +768,7 @@ export default function ProjectDetailPage() {
                         <div><label className={labelCls}>Nombre</label><input type="text" value={namingDesc} onChange={e => setNamingDesc(e.target.value)} placeholder="Ej: PostNavidad" className={inputCls} /></div>
                         <div><label className={labelCls}>Estado</label>
                           <select value={namingStatus} onChange={e => setNamingStatus(e.target.value)} className={inputCls}>
-                            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label} — {s.desc}</option>)}
+                            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label} – {s.desc}</option>)}
                           </select>
                         </div>
                         <div><label className={labelCls}>Versión</label><input type="number" min={1} value={namingVersion} onChange={e => setNamingVersion(parseInt(e.target.value) || 1)} className={inputCls + ' font-mono'} /></div>
@@ -750,7 +786,6 @@ export default function ProjectDetailPage() {
                 </label>
               </div>
             )}
-
             {files.length === 0 ? (
               <div className="bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-12 text-center">
                 <FolderOpen size={40} className="text-gray-300 mx-auto mb-3" />
@@ -782,7 +817,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* ────────────── TAB: BRANDING ────────────── */}
+        {/* ── TAB: BRANDING ── */}
         {activeTab === 'branding' && (
           <div>
             {!project.client_id ? (
@@ -919,53 +954,176 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* ── Task Modal ── */}
-      {showTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowTaskModal(false)}>
-          <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
-              <h2 className="text-base font-semibold text-fp-navy dark:text-fp-honeydew">{editingTask ? 'Editar tarea' : 'Nueva tarea'}</h2>
-              <button onClick={() => setShowTaskModal(false)} className="text-gray-400 hover:text-fp-punch-red"><X size={18} /></button>
+      {/* ── Notion-style Task Detail Panel ── */}
+      {showTaskDetail && (
+        <div className="fixed inset-0 z-50 flex" onClick={() => setShowTaskDetail(false)}>
+          <div className="flex-1" />
+          <div
+            className="w-[640px] bg-white dark:bg-fp-card-dark border-l border-gray-200 dark:border-fp-border-dark h-full overflow-y-auto flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark sticky top-0 bg-white dark:bg-fp-card-dark z-10">
+              <div className="flex items-center gap-2">
+                {editingTask && (
+                  <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-fp-cerulean/10 text-fp-cerulean">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: columns.find(c => c.id === taskDetail.column_id)?.color || '#457B9D' }} />
+                    {columns.find(c => c.id === taskDetail.column_id)?.name || 'Sin columna'}
+                  </span>
+                )}
+                {!editingTask && <span className="text-xs text-fp-text-secondary font-medium">Nueva tarea</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {editingTask && (
+                  <button onClick={() => deleteTask(editingTask.id, editingTask.title)} className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-400 hover:text-fp-punch-red hover:bg-fp-punch-red/10 transition-colors">
+                    <Trash2 size={12} /> Eliminar
+                  </button>
+                )}
+                <button onClick={() => setShowTaskDetail(false)} className="p-1 text-gray-400 hover:text-fp-punch-red"><X size={16} /></button>
+              </div>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              <div><label className={labelCls}>Título *</label><input type="text" value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Ej: Diseñar pantalla de login" className={inputCls} /></div>
-              <div><label className={labelCls}>Descripción</label><textarea value={taskForm.description} onChange={e => setTaskForm({ ...taskForm, description: e.target.value })} rows={3} className={inputCls + ' resize-none'} placeholder="Detalle opcional..." /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Columna</label>
-                  <select value={taskForm.column_id} onChange={e => setTaskForm({ ...taskForm, column_id: e.target.value })} className={inputCls}>
-                    <option value="">— Sin columna —</option>
-                    {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div><label className={labelCls}>Prioridad</label>
-                  <select value={taskForm.priority} onChange={e => setTaskForm({ ...taskForm, priority: e.target.value })} className={inputCls}>
-                    <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option><option value="urgent">Urgente</option>
-                  </select>
-                </div>
+
+            {/* Title */}
+            <div className="px-6 pt-6 pb-2">
+              <textarea
+                value={taskDetail.title}
+                onChange={e => setTaskDetail({ ...taskDetail, title: e.target.value })}
+                placeholder="Título de la tarea..."
+                className="w-full text-2xl font-bold text-fp-navy dark:text-fp-honeydew bg-transparent outline-none resize-none leading-tight placeholder:text-gray-300 dark:placeholder:text-fp-text-tertiary"
+                rows={2}
+              />
+            </div>
+
+            {/* Properties */}
+            <div className="px-6 py-3 space-y-2.5 border-b border-gray-100 dark:border-fp-border-dark">
+              {/* Column */}
+              <div className="flex items-center gap-3 min-h-[28px]">
+                <span className="text-xs text-gray-400 w-24 flex-shrink-0">Columna</span>
+                <select value={taskDetail.column_id} onChange={e => setTaskDetail({ ...taskDetail, column_id: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer">
+                  <option value="">— Sin columna —</option>
+                  {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Fecha límite</label><input type="date" value={taskForm.due_date} onChange={e => setTaskForm({ ...taskForm, due_date: e.target.value })} className={inputCls} /></div>
-                <div><label className={labelCls}>Etiquetas (por coma)</label><input type="text" value={taskForm.tags} onChange={e => setTaskForm({ ...taskForm, tags: e.target.value })} placeholder="diseño, urgente" className={inputCls} /></div>
+              {/* Priority */}
+              <div className="flex items-center gap-3 min-h-[28px]">
+                <span className="text-xs text-gray-400 w-24 flex-shrink-0">Prioridad</span>
+                <select value={taskDetail.priority} onChange={e => setTaskDetail({ ...taskDetail, priority: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer">
+                  <option value="low">🔵 Baja</option>
+                  <option value="medium">🟡 Media</option>
+                  <option value="high">🟠 Alta</option>
+                  <option value="urgent">🔴 Urgente</option>
+                </select>
               </div>
-              <div><label className={labelCls}>Asignar a</label>
-                <div className="flex flex-wrap gap-2">
+              {/* Due date */}
+              <div className="flex items-center gap-3 min-h-[28px]">
+                <span className="text-xs text-gray-400 w-24 flex-shrink-0">Fecha límite</span>
+                <input type="date" value={taskDetail.due_date} onChange={e => setTaskDetail({ ...taskDetail, due_date: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer" />
+              </div>
+              {/* Assignees */}
+              <div className="flex items-start gap-3 min-h-[28px]">
+                <span className="text-xs text-gray-400 w-24 flex-shrink-0 mt-1">Asignados</span>
+                <div className="flex flex-wrap gap-1.5">
                   {profiles.map(p => {
-                    const selected = taskForm.assignees.includes(p.id)
+                    const selected = taskDetail.assignees.includes(p.id)
                     return (
-                      <button key={p.id} onClick={() => setTaskForm({ ...taskForm, assignees: selected ? taskForm.assignees.filter(a => a !== p.id) : [...taskForm.assignees, p.id] })}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${selected ? 'bg-fp-cerulean text-white' : 'border border-gray-200 dark:border-fp-border-dark text-gray-500 hover:border-fp-cerulean'}`}>
-                        <span className="w-4 h-4 rounded-full bg-fp-cerulean/20 flex items-center justify-center text-[8px] font-bold">{(p.full_name || p.email || '?')[0].toUpperCase()}</span>
+                      <button key={p.id} onClick={() => setTaskDetail({ ...taskDetail, assignees: selected ? taskDetail.assignees.filter(a => a !== p.id) : [...taskDetail.assignees, p.id] })}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${selected ? 'bg-fp-cerulean text-white' : 'border border-gray-200 dark:border-fp-border-dark text-gray-500 hover:border-fp-cerulean'}`}>
+                        <span className="w-3.5 h-3.5 rounded-full bg-fp-cerulean/20 flex items-center justify-center text-[8px] font-bold">{(p.full_name || p.email || '?')[0].toUpperCase()}</span>
                         {p.full_name || p.email}
                       </button>
                     )
                   })}
-                  {profiles.length === 0 && <p className="text-xs text-gray-400 italic">Sin miembros en el equipo</p>}
+                  {profiles.length === 0 && <span className="text-xs text-gray-400 italic">Sin miembros en el equipo</span>}
                 </div>
               </div>
+              {/* Tags */}
+              <div className="flex items-center gap-3 min-h-[28px]">
+                <span className="text-xs text-gray-400 w-24 flex-shrink-0">Etiquetas</span>
+                <input type="text" value={taskDetail.tags} onChange={e => setTaskDetail({ ...taskDetail, tags: e.target.value })} placeholder="diseño, urgente (separadas por coma)..." className="flex-1 text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark focus:border-fp-cerulean rounded px-2 py-0.5" />
+              </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-fp-border-dark">
-              <button onClick={() => setShowTaskModal(false)} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-fp-hover-dark">Cancelar</button>
-              <button onClick={saveTask} disabled={!taskForm.title.trim() || savingTask} className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50">{savingTask ? 'Guardando...' : editingTask ? 'Guardar cambios' : 'Crear tarea'}</button>
+
+            {/* Description */}
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Descripción</p>
+              <textarea
+                value={taskDetail.description}
+                onChange={e => setTaskDetail({ ...taskDetail, description: e.target.value })}
+                placeholder="Agregá una descripción detallada..."
+                className="w-full text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none resize-none leading-relaxed min-h-[80px] placeholder:text-gray-300 dark:placeholder:text-fp-text-tertiary"
+                rows={4}
+              />
+            </div>
+
+            {/* Links */}
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Links</p>
+                <button onClick={() => setShowLinkForm(!showLinkForm)} className="flex items-center gap-1 text-xs text-fp-cerulean hover:underline"><Plus size={12} /> Agregar</button>
+              </div>
+              {showLinkForm && (
+                <div className="mb-3 flex gap-2">
+                  <input type="text" value={newLinkLabel} onChange={e => setNewLinkLabel(e.target.value)} placeholder="Etiqueta" className={inputCls + ' flex-1'} />
+                  <input type="url" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)} placeholder="https://..." className={inputCls + ' flex-1'} onKeyDown={e => { if (e.key === 'Enter') addLink() }} />
+                  <button onClick={addLink} className="px-3 py-2 rounded-lg bg-fp-cerulean text-white text-xs font-semibold">OK</button>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {taskDetail.links.map((link, i) => (
+                  <div key={i} className="flex items-center gap-2 group">
+                    <Link2 size={12} className="text-fp-cerulean flex-shrink-0" />
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-fp-cerulean hover:underline flex-1 truncate">{link.label || link.url}</a>
+                    <button onClick={() => removeLink(i)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-fp-punch-red transition-all"><X size={12} /></button>
+                  </div>
+                ))}
+                {taskDetail.links.length === 0 && !showLinkForm && <p className="text-xs text-gray-400 italic">Sin links</p>}
+              </div>
+            </div>
+
+            {/* Subtasks – solo si estamos editando una tarea existente */}
+            {editingTask && (
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Subtareas {subtasks.length > 0 && `(${subtasks.length})`}</p>
+                  <button onClick={() => setAddingSubtask(!addingSubtask)} className="flex items-center gap-1 text-xs text-fp-cerulean hover:underline"><Plus size={12} /> Agregar</button>
+                </div>
+                {addingSubtask && (
+                  <div className="mb-3 flex gap-2">
+                    <input type="text" value={newSubtask} onChange={e => setNewSubtask(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSubtask() }} placeholder="Título de la subtarea..." className={inputCls} autoFocus />
+                    <button onClick={addSubtask} className="px-3 py-2 rounded-lg bg-fp-cerulean text-white text-xs font-semibold whitespace-nowrap">Crear</button>
+                  </div>
+                )}
+                {loadingSubtasks ? (
+                  <p className="text-xs text-gray-400 italic">Cargando...</p>
+                ) : (
+                  <div className="space-y-1">
+                    {subtasks.map(st => {
+                      const pc = priorityConfig[st.priority] || priorityConfig.medium
+                      return (
+                        <div key={st.id} className="flex items-center gap-2 group py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-fp-hover-dark">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${pc.dot}`} />
+                          <span className="text-sm text-fp-navy dark:text-fp-honeydew flex-1 truncate">{st.title}</span>
+                          <button onClick={() => { supabase.from('tasks').delete().eq('id', st.id).then(() => fetchSubtasks(editingTask.id)) }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-fp-punch-red transition-all"><X size={12} /></button>
+                        </div>
+                      )
+                    })}
+                    {subtasks.length === 0 && !addingSubtask && <p className="text-xs text-gray-400 italic">Sin subtareas</p>}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-white dark:bg-fp-card-dark border-t border-gray-100 dark:border-fp-border-dark px-6 py-4 flex justify-between items-center mt-auto">
+              {editingTask ? (
+                <span className="text-xs text-gray-400">Creada {new Date(editingTask.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              ) : <div />}
+              <div className="flex gap-2">
+                <button onClick={() => setShowTaskDetail(false)} className="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-fp-hover-dark">Cancelar</button>
+                <button onClick={saveTaskDetail} disabled={!taskDetail.title.trim() || savingDetail} className="px-5 py-2 rounded-lg bg-fp-cerulean text-white text-sm font-semibold hover:bg-fp-cerulean/90 disabled:opacity-50">
+                  {savingDetail ? 'Guardando...' : editingTask ? 'Guardar cambios' : 'Crear tarea'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
