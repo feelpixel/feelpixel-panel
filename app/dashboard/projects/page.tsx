@@ -35,7 +35,7 @@ const statusConfig: Record<string, { label: string; bg: string; text: string }> 
   active:    { label: 'Activo',     bg: 'bg-fp-cerulean/10',                        text: 'text-fp-cerulean' },
   paused:    { label: 'Pausado',    bg: 'bg-amber-500/10',                           text: 'text-amber-500' },
   completed: { label: 'Completado', bg: 'bg-fp-frosted/10',                          text: 'text-fp-frosted' },
-  archived:  { label: 'Archivado',  bg: 'bg-gray-100 dark:bg-fp-text-tertiary/10',  text: 'text-gray-400 dark:text-fp-text-tertiary' },
+  archived:  { label: 'Archivado',  bg: 'bg-gray-100 dark:bg-fp-text-tertiary/10',   text: 'text-gray-400 dark:text-fp-text-tertiary' },
 }
 
 function getInitials(name: string | null | undefined): string {
@@ -70,11 +70,12 @@ const emptyForm = { name: '', description: '', client_id: '', status: 'active', 
 const inputClass = "w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-fp-border-dark bg-white dark:bg-fp-bg-dark text-sm text-fp-navy dark:text-fp-honeydew outline-none focus:border-fp-cerulean"
 const labelClass = "text-xs text-gray-500 dark:text-fp-text-secondary block mb-1"
 
-// ─── ProjectModal FUERA del componente principal ───────────────────────────
+// ── ProjectModal FUERA del componente principal ────────────────────────────
 // (CRÍTICO: si está adentro, React destruye y recrea el modal con cada tecla
 //  haciendo que el input pierda el foco después de cada letra)
 function ProjectModal({
   f, setF, title, onSave, onCancel, drStatus, clients, saving,
+  members, setMembers, profiles,
 }: {
   f: typeof emptyForm
   setF: (v: typeof emptyForm) => void
@@ -84,6 +85,9 @@ function ProjectModal({
   drStatus?: string
   clients: Client[]
   saving: boolean
+  members: string[]
+  setMembers: (v: string[]) => void
+  profiles: Profile[]
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
@@ -122,6 +126,34 @@ function ProjectModal({
             <div><label className={labelClass}>Entrega</label><input type="date" value={f.due_date} onChange={e => setF({ ...f, due_date: e.target.value })} className={inputClass} /></div>
           </div>
           <div><label className={labelClass}>Link repo GitHub</label><input type="url" value={f.github_repo_url} onChange={e => setF({ ...f, github_repo_url: e.target.value })} placeholder="https://github.com/..." className={inputClass} /></div>
+
+          {/* ── MIEMBROS DEL EQUIPO ── */}
+          <div>
+            <label className={labelClass}>Equipo asignado</label>
+            {profiles.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">Sin perfiles en el equipo todavía</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {profiles.map(p => {
+                  const selected = members.includes(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setMembers(selected ? members.filter(m => m !== p.id) : [...members, p.id])}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${selected ? 'bg-fp-cerulean text-white' : 'border border-gray-200 dark:border-fp-border-dark text-gray-500 dark:text-fp-text-secondary hover:border-fp-cerulean hover:text-fp-cerulean'}`}
+                    >
+                      <span className="w-4 h-4 rounded-full bg-fp-cerulean/20 flex items-center justify-center text-[8px] font-bold flex-shrink-0">
+                        {(p.full_name || p.email || '?')[0].toUpperCase()}
+                      </span>
+                      {p.full_name || p.email}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           {title === 'Nuevo proyecto' && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-fp-cerulean/5 border border-fp-cerulean/15 text-xs text-fp-cerulean">
               <FolderSync size={13} className="flex-shrink-0" />
@@ -165,6 +197,10 @@ export default function ProjectsPage() {
   const [driveStatus, setDriveStatus] = useState<'idle' | 'creating' | 'done' | 'error'>('idle')
   const [form, setForm] = useState(emptyForm)
   const [editForm, setEditForm] = useState(emptyForm)
+
+  // ── Estados separados para miembros (son arrays, no strings) ──
+  const [formMembers, setFormMembers] = useState<string[]>([])
+  const [editFormMembers, setEditFormMembers] = useState<string[]>([])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -218,6 +254,7 @@ export default function ProjectsPage() {
       budget: form.budget ? parseFloat(form.budget) : null, currency: form.currency,
       start_date: form.start_date || null, due_date: form.due_date || null,
       github_repo_url: form.github_repo_url.trim() || null, created_by: userData.user.id,
+      members: formMembers.length > 0 ? formMembers : null,
     }).select().single()
     if (error || !newProject) { setSaving(false); return }
     setDriveStatus('creating')
@@ -238,14 +275,16 @@ export default function ProjectsPage() {
         setDriveStatus('done')
       } else { setDriveStatus('error') }
     } catch { setDriveStatus('error') }
-    setShowCreate(false); setForm(emptyForm); setDriveStatus('idle'); await fetchAll(); setSaving(false)
+    setShowCreate(false); setForm(emptyForm); setFormMembers([]); setDriveStatus('idle'); await fetchAll(); setSaving(false)
   }
 
   const openEdit = (p: Project) => {
     setEditingProject(p)
     setEditForm({ name: p.name, description: p.description || '', client_id: p.client_id || '', status: p.status, budget: p.budget?.toString() || '', currency: p.currency || 'USD', start_date: p.start_date || '', due_date: p.due_date || '', github_repo_url: p.github_repo_url || '' })
+    setEditFormMembers(p.members || [])
     setShowEdit(true)
   }
+
   const handleSaveEdit = async () => {
     if (!editingProject || !editForm.name.trim()) return
     setSaving(true)
@@ -255,8 +294,9 @@ export default function ProjectsPage() {
       budget: editForm.budget ? parseFloat(editForm.budget) : null, currency: editForm.currency,
       start_date: editForm.start_date || null, due_date: editForm.due_date || null,
       github_repo_url: editForm.github_repo_url.trim() || null,
+      members: editFormMembers.length > 0 ? editFormMembers : null,
     }).eq('id', editingProject.id)
-    setShowEdit(false); setEditingProject(null); await fetchAll(); setSaving(false)
+    setShowEdit(false); setEditingProject(null); setEditFormMembers([]); await fetchAll(); setSaving(false)
   }
 
   return (
@@ -399,7 +439,7 @@ export default function ProjectsPage() {
                           <div className="h-full bg-fp-cerulean rounded-full" style={{ width: `${progress}%` }} />
                         </div>
                       </div>
-                      <span className="text-xs text-gray-400 dark:text-fp-text-tertiary">{project.due_date ? new Date(project.due_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '—'}</span>
+                      <span className="text-xs text-gray-400 dark:text-fp-text-tertiary">{project.due_date ? new Date(project.due_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '–'}</span>
                       <button onClick={() => openEdit(project)} className="p-1 rounded-md text-gray-300 hover:text-fp-cerulean opacity-0 group-hover:opacity-100 transition-all"><Pencil size={13} /></button>
                     </div>
                   )
@@ -450,10 +490,13 @@ export default function ProjectsPage() {
           f={form} setF={setForm}
           title="Nuevo proyecto"
           onSave={handleCreate}
-          onCancel={() => { setShowCreate(false); setForm(emptyForm) }}
+          onCancel={() => { setShowCreate(false); setForm(emptyForm); setFormMembers([]) }}
           drStatus={driveStatus}
           clients={clients}
           saving={saving}
+          members={formMembers}
+          setMembers={setFormMembers}
+          profiles={profiles}
         />
       )}
       {showEdit && editingProject && (
@@ -461,9 +504,12 @@ export default function ProjectsPage() {
           f={editForm} setF={setEditForm}
           title={`Editar: ${editingProject.name}`}
           onSave={handleSaveEdit}
-          onCancel={() => { setShowEdit(false); setEditingProject(null) }}
+          onCancel={() => { setShowEdit(false); setEditingProject(null); setEditFormMembers([]) }}
           clients={clients}
           saving={saving}
+          members={editFormMembers}
+          setMembers={setEditFormMembers}
+          profiles={profiles}
         />
       )}
     </div>
