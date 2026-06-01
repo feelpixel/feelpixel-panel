@@ -999,7 +999,7 @@ export default function ProjectDetailPage() {
               {/* Column */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Columna</span>
-                <select value={taskDetail.column_id} onChange={e => setTaskDetail({ ...taskDetail, column_id: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer">
+                <select value={taskDetail.column_id} onChange={e => setTaskDetail({ ...taskDetail, column_id: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-white dark:bg-fp-bg-dark outline-none border border-gray-200 dark:border-fp-border-dark rounded px-2 py-1 cursor-pointer">
                   <option value="">— Sin columna —</option>
                   {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -1007,7 +1007,7 @@ export default function ProjectDetailPage() {
               {/* Priority */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Prioridad</span>
-                <select value={taskDetail.priority} onChange={e => setTaskDetail({ ...taskDetail, priority: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer">
+                <select value={taskDetail.priority} onChange={e => setTaskDetail({ ...taskDetail, priority: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-white dark:bg-fp-bg-dark outline-none border border-gray-200 dark:border-fp-border-dark rounded px-2 py-1 cursor-pointer">
                   <option value="low">🔵 Baja</option>
                   <option value="medium">🟡 Media</option>
                   <option value="high">🟠 Alta</option>
