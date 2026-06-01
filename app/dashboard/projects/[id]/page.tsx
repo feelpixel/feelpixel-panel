@@ -294,7 +294,7 @@ export default function ProjectDetailPage() {
     const payload: Record<string, unknown> = {
       project_id: projectId,
       title: taskForm.title.trim(),
-      status: 'pending',
+      status: 'todo',
     }
     // Columnas nuevas — solo se incluyen si la tabla las tiene
     try {
