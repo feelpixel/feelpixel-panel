@@ -607,7 +607,8 @@ export default function FilesPage() {
             {filteredFiles.map(file => {
               const IconComp = fileTypeIcons[file.file_type] || File
               const colorClass = fileTypeColors[file.file_type] || fileTypeColors.other
-              const isImage = file.file_type === 'image' && file.url
+              const thumbnailUrl = file.drive_file_id ? `https://drive.google.com/thumbnail?id=${file.drive_file_id}&sz=w400` : file.url
+              const isImage = file.file_type === 'image' && (file.drive_file_id || file.url)
               const isSelected = selectedIds.has(file.id)
               return (
                 <div key={file.id} className={`bg-white dark:bg-fp-card-dark border rounded-xl overflow-hidden hover:border-fp-cerulean/30 transition-colors group relative ${isSelected ? 'border-fp-cerulean' : 'border-gray-200 dark:border-fp-border-dark'}`}>
@@ -615,7 +616,7 @@ export default function FilesPage() {
                     {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                   </button>
                   <div className="h-28 bg-gray-50 dark:bg-fp-hover-dark flex items-center justify-center relative">
-                    {isImage ? <img src={file.url!} alt={file.name} className="w-full h-full object-cover" /> : <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}><IconComp size={20} /></div>}
+                    {isImage ? <img src={thumbnailUrl!} alt={file.name} className="w-full h-full object-cover" /> : <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass}`}><IconComp size={20} /></div>}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       {file.url && <button onClick={() => window.open(file.url!, '_blank')} className="p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20"><ExternalLink size={14} /></button>}
                       <button onClick={() => deleteFile(file)} className="p-1.5 rounded-lg bg-white/10 text-white hover:bg-fp-punch-red/50"><Trash2 size={14} /></button>
