@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -106,6 +106,87 @@ function ToggleSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
+// ── MiniCalendar component ────────────────────────────────────────────────────
+function MiniCalendar({ tasks }: { tasks: Task[] }) {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = today.getMonth()
+
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const dayNames = ['D','L','M','M','J','V','S']
+
+  // Construir mapa de día → tareas
+  const tasksByDay: Record<number, Task[]> = {}
+  tasks.forEach(t => {
+    if (!t.due_date) return
+    const d = new Date(t.due_date + 'T00:00:00')
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const day = d.getDate()
+      if (!tasksByDay[day]) tasksByDay[day] = []
+      tasksByDay[day].push(t)
+    }
+  })
+
+  // Construir grilla
+  const cells: (number | null)[] = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  return (
+    <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Calendar size={14} className="text-fp-cerulean" />
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-fp-text-secondary uppercase tracking-wider">
+          {monthNames[month]} {year}
+        </h3>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
+        {dayNames.map((d, i) => (
+          <div key={i} className="text-center text-[10px] text-gray-400 dark:text-fp-text-tertiary font-medium py-0.5">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />
+          const isToday = day === today.getDate()
+          const tasksOnDay = tasksByDay[day] || []
+          const hasTasks = tasksOnDay.length > 0
+          const isUrgent = tasksOnDay.some(t => t.priority === 'urgent' || t.priority === 'high')
+          return (
+            <div
+              key={i}
+              title={hasTasks ? tasksOnDay.map(t => t.title).join(', ') : undefined}
+              className={`relative flex flex-col items-center justify-center rounded-md h-7 cursor-default transition-colors
+                ${isToday ? 'bg-fp-cerulean text-white font-bold' : 'hover:bg-gray-50 dark:hover:bg-fp-hover-dark'}
+              `}
+            >
+              <span className={`text-[11px] ${isToday ? 'text-white' : 'text-fp-navy dark:text-fp-honeydew'}`}>{day}</span>
+              {hasTasks && !isToday && (
+                <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${isUrgent ? 'bg-fp-punch-red' : 'bg-fp-cerulean'}`} />
+              )}
+              {hasTasks && isToday && (
+                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-white/70" />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {Object.keys(tasksByDay).length > 0 && (
+        <p className="text-[10px] text-gray-400 dark:text-fp-text-tertiary mt-2">
+          {Object.values(tasksByDay).flat().length} tarea{Object.values(tasksByDay).flat().length !== 1 ? 's' : ''} con fecha este mes
+        </p>
+      )}
+      {Object.keys(tasksByDay).length === 0 && (
+        <p className="text-[10px] text-gray-400 dark:text-fp-text-tertiary mt-2 italic">Sin fechas límite este mes</p>
+      )}
+    </div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ProjectDetailPage() {
@@ -162,6 +243,8 @@ export default function ProjectDetailPage() {
   const [namingDesc, setNamingDesc] = useState('')
   const [namingStatus, setNamingStatus] = useState('_WIP')
   const [namingVersion, setNamingVersion] = useState(1)
+  // ── FIX: ref para el input de archivo ──
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Branding
   const [showColorForm, setShowColorForm] = useState(false)
@@ -585,6 +668,10 @@ export default function ProjectDetailPage() {
                 {project.clients && <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><Users size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Cliente</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{project.clients.name}</div></div></div>}
                 <div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-fp-cerulean/10 flex items-center justify-center flex-shrink-0"><FolderOpen size={13} className="text-fp-cerulean" /></div><div><div className="text-xs text-gray-400">Creado</div><div className="text-sm text-fp-navy dark:text-fp-honeydew">{new Date(project.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></div>
               </div>
+
+              {/* ── Mini Calendario ── */}
+              <MiniCalendar tasks={tasks} />
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{tasks.length}</div><div className="text-xs text-gray-400 mt-0.5">Tareas</div></div>
                 <div className="bg-white dark:bg-fp-card-dark border border-gray-200 dark:border-fp-border-dark rounded-xl p-4 text-center"><div className="text-2xl font-bold text-fp-cerulean">{files.length}</div><div className="text-xs text-gray-400 mt-0.5">Archivos</div></div>
@@ -778,12 +865,25 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
                 {uploadError && <div className="mb-4 px-3 py-2 rounded-lg bg-fp-punch-red/10 border border-fp-punch-red/20 text-xs text-fp-punch-red">{uploadError}</div>}
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-6 cursor-pointer hover:border-fp-cerulean transition-colors">
+                {/* ── FIX: div en lugar de label, input separado con ref ── */}
+                <div
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl p-6 cursor-pointer hover:border-fp-cerulean transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); if (e.dataTransfer.files?.length) handleUpload(e.dataTransfer.files) }}
+                >
                   {uploading ? <Loader2 size={28} className="text-fp-cerulean animate-spin mb-2" /> : <Upload size={28} className="text-gray-400 mb-2" />}
                   <p className="text-sm text-fp-navy dark:text-fp-honeydew font-medium">{uploading ? 'Subiendo a Drive...' : 'Hacé click o arrastrá archivos acá'}</p>
                   <p className="text-xs text-gray-400 mt-1">Se guardan en la carpeta Drive de este {fileMode === 'fee' ? 'Fee Mensual' : 'proyecto'}</p>
-                  <input type="file" multiple className="hidden" disabled={uploading} onChange={e => e.target.files && handleUpload(e.target.files)} />
-                </label>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={e => e.target.files && handleUpload(e.target.files)}
+                />
               </div>
             )}
             {files.length === 0 ? (
@@ -996,30 +1096,26 @@ export default function ProjectDetailPage() {
 
             {/* Properties */}
             <div className="px-6 py-3 space-y-2.5 border-b border-gray-100 dark:border-fp-border-dark">
-              {/* Column */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Columna</span>
                 <select value={taskDetail.column_id} onChange={e => setTaskDetail({ ...taskDetail, column_id: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-white dark:bg-fp-bg-dark outline-none border border-gray-200 dark:border-fp-border-dark rounded px-2 py-1 cursor-pointer">
-                  <option value="">— Sin columna —</option>
+                  <option value="">– Sin columna –</option>
                   {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              {/* Priority */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Prioridad</span>
                 <select value={taskDetail.priority} onChange={e => setTaskDetail({ ...taskDetail, priority: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-white dark:bg-fp-bg-dark outline-none border border-gray-200 dark:border-fp-border-dark rounded px-2 py-1 cursor-pointer">
-                  <option value="low">🔵 Baja</option>
+                  <option value="low">🟢 Baja</option>
                   <option value="medium">🟡 Media</option>
                   <option value="high">🟠 Alta</option>
                   <option value="urgent">🔴 Urgente</option>
                 </select>
               </div>
-              {/* Due date */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Fecha límite</span>
                 <input type="date" value={taskDetail.due_date} onChange={e => setTaskDetail({ ...taskDetail, due_date: e.target.value })} className="text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark rounded px-2 py-0.5 cursor-pointer" />
               </div>
-              {/* Assignees */}
               <div className="flex items-start gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0 mt-1">Asignados</span>
                 <div className="flex flex-wrap gap-1.5">
@@ -1036,7 +1132,6 @@ export default function ProjectDetailPage() {
                   {profiles.length === 0 && <span className="text-xs text-gray-400 italic">Sin miembros en el equipo</span>}
                 </div>
               </div>
-              {/* Tags */}
               <div className="flex items-center gap-3 min-h-[28px]">
                 <span className="text-xs text-gray-400 w-24 flex-shrink-0">Etiquetas</span>
                 <input type="text" value={taskDetail.tags} onChange={e => setTaskDetail({ ...taskDetail, tags: e.target.value })} placeholder="diseño, urgente (separadas por coma)..." className="flex-1 text-sm text-fp-navy dark:text-fp-honeydew bg-transparent outline-none border border-transparent hover:border-fp-border-dark focus:border-fp-cerulean rounded px-2 py-0.5" />
@@ -1080,7 +1175,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
-            {/* Subtasks – solo si estamos editando una tarea existente */}
+            {/* Subtasks – solo si editamos una tarea existente */}
             {editingTask && (
               <div className="px-6 py-4 border-b border-gray-100 dark:border-fp-border-dark">
                 <div className="flex items-center justify-between mb-3">
