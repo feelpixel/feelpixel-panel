@@ -18,7 +18,8 @@ import {
   Moon,
   ChevronLeft,
   ChevronRight,
-  LogOut,
+ LogOut,
+ UserCog,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/dashboard/services', label: 'Servicios', icon: RefreshCw },
   { href: '/dashboard/tasks', label: 'Tareas', icon: CheckCircle },
   { href: '/dashboard/clients', label: 'Clientes', icon: Users },
+  { href: '/dashboard/team', label: 'Equipo', icon: UserCog },
   { href: '/dashboard/files', label: 'Archivos', icon: FolderOpen },
   { href: '/dashboard/vault', label: 'Bóveda', icon: Lock },
   { href: '/dashboard/calendar', label: 'Calendario', icon: Calendar },
