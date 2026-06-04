@@ -27,12 +27,10 @@ export function usePermissions(): UsePermissionsResult {
 
   useEffect(() => {
     async function load() {
-      // Obtener sesión para leer el rol del token
       const { data: { session } } = await supabase.auth.getSession()
       const userRole = session?.user?.app_metadata?.role || null
       setRole(userRole)
 
-      // Obtener permisos de la tabla
       const { data } = await supabase
         .from('user_permissions')
         .select('*')
@@ -44,9 +42,9 @@ export function usePermissions(): UsePermissionsResult {
     load()
   }, [])
 
-  // can('proyectos') → verifica can_view por defecto
-  // can('proyectos', 'edit') → verifica can_edit
   function can(module: string, action: 'view' | 'edit' | 'delete' | 'export' = 'view'): boolean {
+    // Los admins siempre tienen acceso a todo
+    if (role === 'admin') return true
     const perm = permissions.find((p) => p.module === module)
     if (!perm) return false
     const map = {

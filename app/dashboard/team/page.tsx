@@ -92,9 +92,6 @@ export default function TeamPage() {
   const supabase = createClient()
   const { isAdmin, loading: loadingPerms } = usePermissions()
 
-  if (loadingPerms) return null
-  if (!isAdmin()) return <AccessDenied />
-
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -156,7 +153,6 @@ export default function TeamPage() {
     })
   }
 
-  // ── Abrir modal edición ──────────────────────────────────────
   async function openEdit(member: TeamMember) {
     setEditingMember(member)
     setEditRole(member.role)
@@ -164,7 +160,6 @@ export default function TeamPage() {
     setEditPerms(perms)
   }
 
-  // ── Guardar edición ──────────────────────────────────────────
   async function saveEdit() {
     if (!editingMember) return
     setSaving(true)
@@ -183,7 +178,6 @@ export default function TeamPage() {
     loadMembers()
   }
 
-  // ── Invitar ──────────────────────────────────────────────────
   async function handleInvite() {
     if (!inviteEmail.trim()) return
     setInviting(true)
@@ -213,7 +207,6 @@ export default function TeamPage() {
     }
   }
 
-  // ── Eliminar ─────────────────────────────────────────────────
   async function handleDelete() {
     if (!deletingMember) return
     setDeleting(true)
@@ -227,7 +220,6 @@ export default function TeamPage() {
     loadMembers()
   }
 
-  // ── Toggle permiso ───────────────────────────────────────────
   function togglePerm(
     perms: Permission[],
     setPerms: (p: Permission[]) => void,
@@ -241,7 +233,6 @@ export default function TeamPage() {
     )
   }
 
-  // ── Filtros ──────────────────────────────────────────────────
   const filtered = members.filter((m) => {
     const matchSearch =
       !search ||
@@ -250,6 +241,10 @@ export default function TeamPage() {
     const matchRole = filterRole === 'all' || m.role === filterRole
     return matchSearch && matchRole
   })
+
+  // ── Checks de acceso (siempre después de todos los hooks) ────
+  if (loadingPerms) return null
+  if (!isAdmin()) return <AccessDenied />
 
   // ── UI ────────────────────────────────────────────────────────
   return (
@@ -386,41 +381,21 @@ export default function TeamPage() {
                 <X size={18} className="text-gray-400 hover:text-gray-600" />
               </button>
             </div>
-
             <div className="p-5 space-y-4">
-              {/* Datos básicos */}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-1">
-                    Nombre completo
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
-                    placeholder="Ej: Juan García"
-                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-fp-bg-dark border border-gray-200 dark:border-fp-border-dark rounded-lg text-fp-navy dark:text-fp-honeydew placeholder-gray-400 focus:outline-none focus:border-fp-cerulean"
-                  />
+                  <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-1">Nombre completo</label>
+                  <input type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Ej: Juan García"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-fp-bg-dark border border-gray-200 dark:border-fp-border-dark rounded-lg text-fp-navy dark:text-fp-honeydew placeholder-gray-400 focus:outline-none focus:border-fp-cerulean" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-1">
-                    Email <span className="text-fp-punch-red">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="juan@ejemplo.com"
-                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-fp-bg-dark border border-gray-200 dark:border-fp-border-dark rounded-lg text-fp-navy dark:text-fp-honeydew placeholder-gray-400 focus:outline-none focus:border-fp-cerulean"
-                  />
+                  <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-1">Email <span className="text-fp-punch-red">*</span></label>
+                  <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="juan@ejemplo.com"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-fp-bg-dark border border-gray-200 dark:border-fp-border-dark rounded-lg text-fp-navy dark:text-fp-honeydew placeholder-gray-400 focus:outline-none focus:border-fp-cerulean" />
                 </div>
               </div>
-
-              {/* Selector de rol */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-2">
-                  Rol
-                </label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-2">Rol</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { value: 'admin', label: 'Admin', icon: Shield, desc: 'Control total' },
@@ -430,47 +405,22 @@ export default function TeamPage() {
                     const Icon = r.icon
                     const selected = inviteRole === r.value
                     return (
-                      <button
-                        key={r.value}
-                        onClick={() => setInviteRole(r.value as UserRole)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
-                          selected
-                            ? 'border-fp-cerulean bg-fp-cerulean/10'
-                            : 'border-gray-200 dark:border-fp-border-dark hover:border-fp-cerulean/50'
-                        }`}
-                      >
+                      <button key={r.value} onClick={() => setInviteRole(r.value as UserRole)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${selected ? 'border-fp-cerulean bg-fp-cerulean/10' : 'border-gray-200 dark:border-fp-border-dark hover:border-fp-cerulean/50'}`}>
                         <Icon size={18} className={selected ? 'text-fp-cerulean' : 'text-gray-400'} />
-                        <span className={`text-xs font-medium ${selected ? 'text-fp-cerulean' : 'text-gray-500 dark:text-fp-text-secondary'}`}>
-                          {r.label}
-                        </span>
+                        <span className={`text-xs font-medium ${selected ? 'text-fp-cerulean' : 'text-gray-500 dark:text-fp-text-secondary'}`}>{r.label}</span>
                         <span className="text-[10px] text-gray-400">{r.desc}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Matriz de permisos */}
               <PermissionsMatrix perms={invitePerms} setPerms={setInvitePerms} togglePerm={togglePerm} />
-
-              {inviteError && (
-                <p className="text-xs text-fp-punch-red bg-red-50 dark:bg-fp-punch-red/10 px-3 py-2 rounded-lg">
-                  {inviteError}
-                </p>
-              )}
-
+              {inviteError && <p className="text-xs text-fp-punch-red bg-red-50 dark:bg-fp-punch-red/10 px-3 py-2 rounded-lg">{inviteError}</p>}
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowInvite(false)}
-                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleInvite}
-                  disabled={inviting || !inviteEmail.trim()}
-                  className="px-5 py-2 bg-fp-punch-red hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-                >
+                <button onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancelar</button>
+                <button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}
+                  className="px-5 py-2 bg-fp-punch-red hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
                   {inviting ? 'Enviando...' : 'Enviar invitación'}
                 </button>
               </div>
@@ -487,23 +437,15 @@ export default function TeamPage() {
               <div className="flex items-center gap-3">
                 <Avatar member={editingMember} />
                 <div>
-                  <h2 className="font-semibold text-fp-navy dark:text-fp-honeydew text-sm">
-                    {editingMember.full_name || editingMember.email}
-                  </h2>
+                  <h2 className="font-semibold text-fp-navy dark:text-fp-honeydew text-sm">{editingMember.full_name || editingMember.email}</h2>
                   <p className="text-xs text-gray-400 dark:text-fp-text-secondary">{editingMember.email}</p>
                 </div>
               </div>
-              <button onClick={() => setEditingMember(null)}>
-                <X size={18} className="text-gray-400 hover:text-gray-600" />
-              </button>
+              <button onClick={() => setEditingMember(null)}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
             </div>
-
             <div className="p-5 space-y-4">
-              {/* Cambiar rol */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-2">
-                  Rol
-                </label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-fp-text-secondary mb-2">Rol</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { value: 'admin', label: 'Admin', icon: Shield, desc: 'Control total' },
@@ -513,41 +455,21 @@ export default function TeamPage() {
                     const Icon = r.icon
                     const selected = editRole === r.value
                     return (
-                      <button
-                        key={r.value}
-                        onClick={() => setEditRole(r.value as UserRole)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
-                          selected
-                            ? 'border-fp-cerulean bg-fp-cerulean/10'
-                            : 'border-gray-200 dark:border-fp-border-dark hover:border-fp-cerulean/50'
-                        }`}
-                      >
+                      <button key={r.value} onClick={() => setEditRole(r.value as UserRole)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${selected ? 'border-fp-cerulean bg-fp-cerulean/10' : 'border-gray-200 dark:border-fp-border-dark hover:border-fp-cerulean/50'}`}>
                         <Icon size={18} className={selected ? 'text-fp-cerulean' : 'text-gray-400'} />
-                        <span className={`text-xs font-medium ${selected ? 'text-fp-cerulean' : 'text-gray-500 dark:text-fp-text-secondary'}`}>
-                          {r.label}
-                        </span>
+                        <span className={`text-xs font-medium ${selected ? 'text-fp-cerulean' : 'text-gray-500 dark:text-fp-text-secondary'}`}>{r.label}</span>
                         <span className="text-[10px] text-gray-400">{r.desc}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Matriz de permisos */}
               <PermissionsMatrix perms={editPerms} setPerms={setEditPerms} togglePerm={togglePerm} />
-
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setEditingMember(null)}
-                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className="px-5 py-2 bg-fp-cerulean hover:bg-fp-navy disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-                >
+                <button onClick={() => setEditingMember(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancelar</button>
+                <button onClick={saveEdit} disabled={saving}
+                  className="px-5 py-2 bg-fp-cerulean hover:bg-fp-navy disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
                   {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
@@ -565,17 +487,9 @@ export default function TeamPage() {
               Vas a eliminar a <strong className="text-fp-navy dark:text-fp-honeydew">{deletingMember.full_name || deletingMember.email}</strong>. Esta acción no se puede deshacer.
             </p>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDeletingMember(null)}
-                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-5 py-2 bg-fp-punch-red hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-              >
+              <button onClick={() => setDeletingMember(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancelar</button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="px-5 py-2 bg-fp-punch-red hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors">
                 {deleting ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
@@ -605,14 +519,11 @@ function PermissionsMatrix({
 
   return (
     <div className="border border-gray-200 dark:border-fp-border-dark rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-fp-navy dark:text-fp-honeydew hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors"
-      >
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-fp-navy dark:text-fp-honeydew hover:bg-gray-50 dark:hover:bg-fp-hover-dark transition-colors">
         Permisos por módulo
         <ChevronDown size={16} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-
       {open && (
         <div className="border-t border-gray-100 dark:border-fp-border-dark">
           <div className="grid grid-cols-5 px-4 py-2 bg-gray-50 dark:bg-fp-bg-dark">
@@ -626,23 +537,12 @@ function PermissionsMatrix({
           {MODULES.map((m) => {
             const perm = perms.find((p) => p.module === m.key)!
             return (
-              <div
-                key={m.key}
-                className="grid grid-cols-5 px-4 py-2.5 border-t border-gray-50 dark:border-fp-border-dark hover:bg-gray-50 dark:hover:bg-fp-hover-dark"
-              >
-                <span className="text-xs text-fp-navy dark:text-fp-honeydew col-span-1 flex items-center">
-                  {m.label}
-                </span>
+              <div key={m.key} className="grid grid-cols-5 px-4 py-2.5 border-t border-gray-50 dark:border-fp-border-dark hover:bg-gray-50 dark:hover:bg-fp-hover-dark">
+                <span className="text-xs text-fp-navy dark:text-fp-honeydew col-span-1 flex items-center">{m.label}</span>
                 {(['can_view', 'can_edit', 'can_delete', 'can_export'] as const).map((field) => (
                   <div key={field} className="flex items-center justify-center">
-                    <button
-                      onClick={() => togglePerm(perms, setPerms, m.key, field)}
-                      className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                        perm[field]
-                          ? 'bg-fp-cerulean border-fp-cerulean'
-                          : 'border-gray-300 dark:border-fp-border-dark hover:border-fp-cerulean'
-                      }`}
-                    >
+                    <button onClick={() => togglePerm(perms, setPerms, m.key, field)}
+                      className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${perm[field] ? 'bg-fp-cerulean border-fp-cerulean' : 'border-gray-300 dark:border-fp-border-dark hover:border-fp-cerulean'}`}>
                       {perm[field] && <Check size={11} className="text-white" />}
                     </button>
                   </div>

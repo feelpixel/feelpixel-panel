@@ -65,8 +65,6 @@ function GoogleBadge({ small = false }: { small?: boolean }) {
 export default function VaultPage() {
   const supabase = createClient()
   const { can, loading: loadingPerms } = usePermissions()
-  if (loadingPerms) return null
-  if (!can('boveda')) return <AccessDenied />
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -176,6 +174,9 @@ export default function VaultPage() {
   const selectedCatName = filterCategory !== 'all' ? categories.find(c => c.id === filterCategory)?.name : null
   const selectedClientLabel = filterClient === 'all' ? null : filterClient === 'internal' ? 'Feel Pixel' : clients.find(c => c.id === filterClient)?.name || null
 
+  // Checks de acceso — siempre después de todos los hooks
+  if (loadingPerms) return null
+  if (!can('boveda')) return <AccessDenied />
   return (
     <div className="min-h-screen" onClick={() => { setShowCatDropdown(false); setShowClientDropdown(false) }}>
 

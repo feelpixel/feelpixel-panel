@@ -184,8 +184,6 @@ function ProjectModal({
 export default function ProjectsPage() {
   const supabase = createClient()
   const { can, loading: loadingPerms } = usePermissions()
-  if (loadingPerms) return null
-  if (!can('proyectos')) return <AccessDenied />
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -304,6 +302,9 @@ export default function ProjectsPage() {
     setShowEdit(false); setEditingProject(null); setEditFormMembers([]); await fetchAll(); setSaving(false)
   }
 
+  // Checks de acceso — siempre después de todos los hooks
+  if (loadingPerms) return null
+  if (!can('proyectos')) return <AccessDenied />
   return (
     <div>
       {/* Header */}
