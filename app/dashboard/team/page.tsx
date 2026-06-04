@@ -14,6 +14,8 @@ import {
   Trash2,
   ChevronDown,
 } from 'lucide-react'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
 
 // ── Tipos ─────────────────────────────────────────────────────
 type UserRole = 'admin' | 'member' | 'client'
@@ -88,6 +90,10 @@ function Avatar({ member }: { member: TeamMember }) {
 // ── Componente principal ───────────────────────────────────────
 export default function TeamPage() {
   const supabase = createClient()
+  const { isAdmin, loading: loadingPerms } = usePermissions()
+
+  if (loadingPerms) return null
+  if (!isAdmin()) return <AccessDenied />
 
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)

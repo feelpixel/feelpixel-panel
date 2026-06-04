@@ -8,6 +8,8 @@ import {
   ChevronDown, FolderSync, Loader2, CalendarDays, Briefcase,
   Tag, CheckSquare, Square,
 } from 'lucide-react'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
 
 // ─── Tipos ────────────────────────────────────────────────────────────
 
@@ -89,7 +91,9 @@ function getDayName(year: number, month: number, day: number): string {
 
 export default function FilesPage() {
   const supabase = createClient()
-
+  const { can, loading: loadingPerms } = usePermissions()
+  if (loadingPerms) return null
+  if (!can('archivos')) return <AccessDenied />
   const [files, setFiles] = useState<FileRecord[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<ClientRecord[]>([])

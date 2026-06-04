@@ -1,1 +1,19 @@
-export default function TasksPage() { return (<div className="p-8"><h1 className="text-xl font-bold text-fp-navy dark:text-fp-honeydew tracking-tight mb-2">Tareas</h1><p className="text-sm text-gray-400 dark:text-fp-text-tertiary">Este módulo se construye en la siguiente iteración.</p><div className="mt-8 p-6 bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl text-center"><p className="text-sm text-gray-400 dark:text-fp-text-tertiary">Módulo en desarrollo</p></div></div>) }
+'use client'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
+
+export default function TasksPage() {
+  const { can, loading } = usePermissions()
+  if (loading) return null
+  if (!can('tareas')) return <AccessDenied />
+
+  return (
+    <div className="p-8">
+      <h1 className="text-xl font-bold text-fp-navy dark:text-fp-honeydew tracking-tight mb-2">Tareas</h1>
+      <p className="text-sm text-gray-400 dark:text-fp-text-tertiary">Este módulo se construye en la siguiente iteración.</p>
+      <div className="mt-8 p-6 bg-white dark:bg-fp-card-dark border border-dashed border-gray-300 dark:border-fp-border-dark rounded-xl text-center">
+        <p className="text-sm text-gray-400 dark:text-fp-text-tertiary">Módulo en desarrollo</p>
+      </div>
+    </div>
+  )
+}

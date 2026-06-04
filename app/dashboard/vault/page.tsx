@@ -8,6 +8,8 @@ import {
   ExternalLink, Trash2, Edit2, X, ChevronDown, Globe, User, KeyRound,
   Building2, Loader2, Bot,
 } from 'lucide-react'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
 
 type Category = { id: string; name: string; icon: string; sort_order: number }
 type Client = { id: string; name: string }
@@ -62,6 +64,9 @@ function GoogleBadge({ small = false }: { small?: boolean }) {
 
 export default function VaultPage() {
   const supabase = createClient()
+  const { can, loading: loadingPerms } = usePermissions()
+  if (loadingPerms) return null
+  if (!can('boveda')) return <AccessDenied />
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [clients, setClients] = useState<Client[]>([])

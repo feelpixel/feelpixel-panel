@@ -8,6 +8,8 @@ import {
   LayoutGrid, List, Pencil, TrendingUp, CheckCircle2, AlertCircle,
   Clock, ExternalLink, Github, Activity,
 } from 'lucide-react'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
 
 const DRIVE_INTERNAL_FOLDER_ID = '1h6CMaem7H6SyfksqM-r9ebYqqCEoCX-y'
 const DRIVE_PROYECTOS_TEMPLATE_ID = '1qADx0hzJe2aVr5SV043G-5GAMT2w9T6r'
@@ -181,6 +183,9 @@ function ProjectModal({
 
 export default function ProjectsPage() {
   const supabase = createClient()
+  const { can, loading: loadingPerms } = usePermissions()
+  if (loadingPerms) return null
+  if (!can('proyectos')) return <AccessDenied />
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
