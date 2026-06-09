@@ -92,8 +92,6 @@ function getDayName(year: number, month: number, day: number): string {
 export default function FilesPage() {
   const supabase = createClient()
   const { can, loading: loadingPerms } = usePermissions()
-  if (loadingPerms) return null
-  if (!can('archivos')) return <AccessDenied />
   const [files, setFiles] = useState<FileRecord[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<ClientRecord[]>([])
@@ -156,6 +154,8 @@ export default function FilesPage() {
   }
 
   useEffect(() => { fetchFiles(); fetchProjects(); fetchClients() }, [fetchFiles])
+  if (loadingPerms) return null
+  if (!can('archivos')) return <AccessDenied />
 
   // ── Helpers ────────────────────────────────────────────────────────
 
