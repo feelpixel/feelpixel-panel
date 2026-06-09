@@ -1,3 +1,4 @@
+import { AnnouncementsWidget } from '@/components/AnnouncementsWidget'
 import { createClient } from '@/lib/supabase/server'
 import { Search, Bell, Calendar, Clock, AlertCircle, FolderOpen, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
@@ -130,6 +131,13 @@ export default async function DashboardPage() {
     .from('clients')
     .select('*', { count: 'exact', head: true })
 
+
+  // Fetch announcements
+  const { data: announcements } = await supabase
+    .from('announcements')
+    .select('*')
+    .order('created_at', { ascending: false })
+
   const today = new Date().toLocaleDateString('es-AR', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
@@ -224,6 +232,13 @@ export default async function DashboardPage() {
             <div className="text-xs text-gray-400 dark:text-fp-text-tertiary truncate">{profile?.role || 'member'}</div>
           </div>
         </div>
+
+
+        {/* Announcements */}
+        <AnnouncementsWidget
+          announcements={announcements || []}
+          isAdmin={profile?.role === 'admin'}
+        />
 
         {/* Main grid */}
         <div className="grid grid-cols-3 gap-6">
