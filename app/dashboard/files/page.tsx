@@ -156,6 +156,8 @@ export default function FilesPage() {
   useEffect(() => { fetchFiles(); fetchProjects(); fetchClients() }, [fetchFiles])
   if (loadingPerms) return null
   if (!can('archivos')) return <AccessDenied />
+  const canEdit = can('archivos', 'edit')
+  const canDelete = can('archivos', 'delete')
 
   // ── Helpers ────────────────────────────────────────────────────────
 
@@ -379,9 +381,9 @@ export default function FilesPage() {
               <button onClick={() => setViewMode('grid')} className={`p-1.5 ${viewMode === 'grid' ? 'bg-fp-cerulean/10 text-fp-cerulean' : 'text-gray-400'}`}><Grid size={14} /></button>
             </div>
 
-            <button onClick={() => setShowUpload(!showUpload)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fp-punch-red/10 text-fp-punch-red text-xs font-semibold hover:bg-fp-punch-red/20">
+            {canEdit && <button onClick={() => setShowUpload(!showUpload)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fp-punch-red/10 text-fp-punch-red text-xs font-semibold hover:bg-fp-punch-red/20">
               <Upload size={13} /> Subir
-            </button>
+            </button>}
           </div>
         </div>
       </div>
@@ -597,10 +599,10 @@ export default function FilesPage() {
                   <span className="text-xs text-gray-500 dark:text-fp-text-secondary truncate">{file.projects?.name || '—'}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-md w-fit ${colorClass}`}>{file.file_type}</span>
                   <span className="text-xs text-gray-400 font-mono">{formatSize(file.size_bytes)}</span>
-                  <button onClick={() => toggleVisibility(file)} className={`p-1 rounded-md ${file.visible_to_client ? 'text-fp-cerulean bg-fp-cerulean/10' : 'text-gray-400 hover:text-fp-cerulean'}`}>{file.visible_to_client ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                  {canEdit && <button onClick={() => toggleVisibility(file)} className={`p-1 rounded-md ${file.visible_to_client ? 'text-fp-cerulean bg-fp-cerulean/10' : 'text-gray-400 hover:text-fp-cerulean'}`}>{file.visible_to_client ? <Eye size={13} /> : <EyeOff size={13} />}</button>}
                   <div className="flex items-center gap-1 justify-end">
                     {file.url && <button onClick={() => window.open(file.url!, '_blank')} className="p-1 rounded-md text-gray-400 hover:text-fp-cerulean hover:bg-fp-cerulean/10"><ExternalLink size={13} /></button>}
-                    <button onClick={() => deleteFile(file)} className="p-1 rounded-md text-gray-400 hover:text-fp-punch-red hover:bg-fp-punch-red/10"><Trash2 size={13} /></button>
+                    {canDelete && <button onClick={() => deleteFile(file)} className="p-1 rounded-md text-gray-400 hover:text-fp-punch-red hover:bg-fp-punch-red/10"><Trash2 size={13} /></button>}
                   </div>
                 </div>
               )
