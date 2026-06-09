@@ -45,6 +45,23 @@ interface SidebarProps {
   } | null
 }
 
+// Isotipo Feel Pixel — inline SVG
+function IsotipoFP({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 178.47 175.55"
+      className={className}
+      aria-label="Feel Pixel"
+    >
+      <polygon
+        fill="#e63946"
+        points="0 175.23 0 64.46 108.32 64.21 108.44 51.37 0 51.24 0 0 178.47 0 178.47 175.55 0 175.23"
+      />
+    </svg>
+  )
+}
+
 export function Sidebar({ user }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -75,12 +92,7 @@ export function Sidebar({ user }: SidebarProps) {
         } h-16 border-b border-gray-200 dark:border-fp-border-dark cursor-pointer`}
         onClick={() => setCollapsed(!collapsed)}
       >
-        {/* Isotipo Feel Pixel */}
-        <img
-          src="/ISOTIPO_PUNCH_RED.svg"
-          alt="Feel Pixel"
-          className="w-8 h-8 flex-shrink-0"
-        />
+        <IsotipoFP className="w-8 h-8 flex-shrink-0" />
         {!collapsed && (
           <div className="overflow-hidden">
             <div className="text-sm font-bold text-fp-navy dark:text-fp-honeydew tracking-tight">
