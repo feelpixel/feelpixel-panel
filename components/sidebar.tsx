@@ -75,9 +75,12 @@ export function Sidebar({ user }: SidebarProps) {
         } h-16 border-b border-gray-200 dark:border-fp-border-dark cursor-pointer`}
         onClick={() => setCollapsed(!collapsed)}
       >
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fp-punch-red to-fp-cerulean flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">FP</span>
-        </div>
+        {/* Isotipo Feel Pixel */}
+        <img
+          src="/ISOTIPO_PUNCH_RED.svg"
+          alt="Feel Pixel"
+          className="w-8 h-8 flex-shrink-0"
+        />
         {!collapsed && (
           <div className="overflow-hidden">
             <div className="text-sm font-bold text-fp-navy dark:text-fp-honeydew tracking-tight">

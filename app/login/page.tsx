@@ -27,13 +27,13 @@ export default function LoginPage() {
     <div className="min-h-screen bg-fp-bg-dark flex items-center justify-center">
       <div className="w-full max-w-sm mx-auto px-6">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-fp-punch-red to-fp-cerulean mb-4">
-            <span className="text-white font-bold text-2xl">FP</span>
-          </div>
-          <h1 className="text-2xl font-bold text-fp-honeydew tracking-tight">
-            feel pixel
-          </h1>
-          <p className="text-fp-text-tertiary text-sm mt-1 font-mono">
+          {/* Wordmark Feel Pixel */}
+          <img
+            src="/WORDMARK_PUNCH_RED.svg"
+            alt="Feel Pixel"
+            className="h-10 mx-auto mb-4"
+          />
+          <p className="text-fp-text-tertiary text-sm font-mono">
             panel interno
           </p>
         </div>
