@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { usePermissions } from '@/lib/hooks/usePermissions'
+import { AccessDenied } from '@/components/AccessDenied'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plus,
@@ -68,7 +70,7 @@ const emptyForm: FormState = {
 
 export default function ClientsPage() {
   const supabase = createClient()
-
+  const { can, loading: loadingPerms } = usePermissions()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -107,6 +109,9 @@ export default function ClientsPage() {
   }, [])
 
   useEffect(() => { fetchClients() }, [fetchClients])
+// Permisos — siempre después de todos los hooks
+  if (loadingPerms) return null
+  if (!can('proyectos')) return <AccessDenied />
 
   // ── Modal ──────────────────────────────────────────────────────────────
 
