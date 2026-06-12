@@ -1,7 +1,6 @@
 import { AnnouncementsWidget } from '@/components/AnnouncementsWidget'
-import { NotificationBell } from '@/components/NotificationBell'
 import { createClient } from '@/lib/supabase/server'
-import { Search, Calendar, AlertCircle, FolderOpen, CheckCircle2 } from 'lucide-react'
+import { Search, Bell, Calendar, Clock, AlertCircle, FolderOpen, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
 // ── Mini Calendar (server-rendered, current month) ────────────────────────
@@ -60,7 +59,7 @@ function MiniCalendar({ markedDates }: { markedDates: string[] }) {
             <div key={i} className="flex flex-col items-center py-0.5">
               <span className={`w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-medium transition-colors
                 ${isToday ? 'bg-fp-cerulean text-white' : 'text-fp-navy dark:text-fp-honeydew hover:bg-gray-100 dark:hover:bg-fp-hover-dark'}
-              }`}>
+              `}>
                 {day}
               </span>
               {hasDeadline && (
@@ -199,8 +198,9 @@ export default async function DashboardPage() {
               <span>Buscar...</span>
               <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-fp-hover-dark text-gray-400 dark:text-fp-text-tertiary">⌘K</kbd>
             </div>
-            {/* ── NotificationBell ── */}
-            <NotificationBell userId={user!.id} />
+            <div className="relative">
+              <Bell size={18} className="text-gray-400 dark:text-fp-text-secondary" />
+            </div>
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fp-navy to-fp-cerulean flex items-center justify-center">
               <span className="text-white text-sm font-semibold">
                 {profile?.full_name?.[0] || '?'}
